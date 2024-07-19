@@ -361,3 +361,9 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+zig-out/
+zig-cache/
+*.vcxproj.filters
+*.vcxproj.user
+
