@@ -1,0 +1,14 @@
+#version 460
+#extension GL_EXT_scalar_block_layout: require
+layout (local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+
+layout(binding = 0, rgba8) uniform image2D someImage;
+
+layout(push_constant, scalar) uniform constants 
+{
+    ivec2 resolution;
+};
+
+void main() {
+    imageStore(someImage, ivec2(gl_GlobalInvocationID.xy), vec4(vec2(gl_GlobalInvocationID.xy)/resolution,0.0,1.0));
+}

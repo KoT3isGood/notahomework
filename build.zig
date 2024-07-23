@@ -6,7 +6,8 @@ pub fn build(b: *std.Build) void {
 
     const glfw = getGlfw(b, optimize, target);
 
-
+    
+    
 
 
 
@@ -25,6 +26,9 @@ pub fn build(b: *std.Build) void {
     nhw.linkLibrary(glfw);
     nhw.linkLibCpp();
     nhw.addIncludePath(.{ .path = "thirdparty/" });
+    nhw.addLibraryPath(.{ .path = "thirdparty/" });
+    const vulkanName = if(target.result.os.tag == .windows) "vulkan-1" else "vulkan";
+    nhw.linkSystemLibrary(vulkanName);
     nhw.addCSourceFiles(.{
         .files = &.{ "src/nhw.cpp", "src/draw/nhwdraw.cpp" },
     });

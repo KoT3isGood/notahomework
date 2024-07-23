@@ -44,6 +44,7 @@
     <OutDir />
     <IntDir />
     <NMakeBuildCommandLine>zig build</NMakeBuildCommandLine>
+    <AdditionalOptions>/std:c++17</AdditionalOptions>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <NMakeOutput>notahomework.exe</NMakeOutput>
@@ -51,6 +52,7 @@
     <OutDir />
     <IntDir />
     <NMakeBuildCommandLine>zig build</NMakeBuildCommandLine>
+    <AdditionalOptions>/std:c++17</AdditionalOptions>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <BuildLog>
