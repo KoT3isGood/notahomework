@@ -2,16 +2,20 @@
 #include "stdio.h"
 #include <filesystem>
 #include <fstream>
+#include "GLFW/glfw3.h"
 
 nhwInstanceInfo InstanceInfo = {};
 
 void CreateInstance(nhwInstanceInfo createInfo)
 {
+	if (!glfwInit()) Mayday("Failed to init GLFW");
+	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 	InstanceInfo = createInfo;
 }
 
 void DestroyInstance()
 {
+	glfwTerminate();
 }
 
 void Log(const char* msg, ...)

@@ -1,7 +1,9 @@
 #include "nhw.h"
 #include "draw/nhwdraw.h"
+#include "device/nhwdevice.h"
 #include <stdio.h>
 #include "stdarg.h"
+#include <cstring>
 
 void logMessage(const char* msg, va_list args) {
 
@@ -34,27 +36,89 @@ int main() {
 	cpi.pipelineInfo.descriptorTypes = descriptors;
 	cpi.computeSpirv = computeShader;
 	void* shader = CreateComputePipeline(cpi);
+
+
+	RasterizationPipelineInfo rpi{};
+
+	rpi.pipelineInfo = {};
+	rpi.pipelineInfo.constantsSize = 8;
+	rpi.pipelineInfo.descriptorsCount = 0;
+
+	unsigned char* fragmentShader = LoadFileData("shader.frag.spv", &rpi.fragmentSpirvSize);
+	unsigned char* vertexShader = LoadFileData("shader.vert.spv", &rpi.vertexSpirvSize);
+	rpi.fragmentSpirv = fragmentShader;
+	rpi.vertexSpirv = vertexShader;
+	void* triShader = CreateRasterizationPipeline(rpi);
 	
 	WindowInfo winInfo{};
-	winInfo.title = "Real time stategy example";
-	winInfo.width = 640;
-	winInfo.height = 480;
+	winInfo.title = R"(Real real time real time strategy named "Real time strategy example" example of real time strategy example)";
+	winInfo.width = 1280;
+	winInfo.height = 720;
 	void* window = CreateWindow(winInfo);
 
+	float triangleVertices[] = {
+	0.0,1.0,0.0,
+	1.0,-1.0,0.0,
+	0.0,-1.0,0.0,
 
+	};
+
+	void* triangleVerticesPtr = nullptr;
+
+	void* vertexBuffer = CreateBuffer(sizeof(triangleVertices),&triangleVerticesPtr, BufferType::Vertex);
+
+	memcpy(triangleVerticesPtr, triangleVertices, sizeof(triangleVertices));
+	Log("%f,%f,%f", ((float*)triangleVerticesPtr)[0], ((float*)triangleVerticesPtr)[1], ((float*)triangleVerticesPtr)[2]);
+
+	uint32_t triangleIndexes[] = {
+		0,1,2
+	};
+	void* triangleIndexesPtr = nullptr;
+	void* indexBuffer = CreateBuffer(sizeof(triangleIndexes), &triangleIndexesPtr, BufferType::Index);
+	memcpy(triangleIndexesPtr, triangleIndexes, sizeof(triangleIndexes));
+
+	
 
 	while (!ShouldClose()) {
-		SetDescriptor(shader, GetWindowImage(window), 0);
+
+		uint32_t resolution[2] = { winInfo.width,winInfo.height };
+		
+
+		void* image = GetWindowImage(window);
+		SetDescriptor(shader, image, 0);
+
+
+
+
+
 
 		BeginRendering();
 
+
+
+		
+
 		winInfo = GetWindowInfo(window);
 
-		uint32_t resolution[2] = { winInfo.width,winInfo .height};
-		UsePipeline(shader);
-		SetConstants(shader, resolution);
-		Dispatch(resolution[0], resolution[1], 1);
+		ClearImage(image);
+		BarrierImage(image);
 
+		if (IsKeyPressed(window, 65)) {
+			UsePipeline(shader);
+			SetConstants(shader, resolution);
+			Dispatch(resolution[0], resolution[1], 1);
+			BarrierImage(image);
+		}
+
+
+		if (IsKeyPressed(window, 68)) {
+			Record(triShader, resolution[0], resolution[1], image, nullptr);
+			SetVertexBuffer(vertexBuffer);
+			SetIndexBuffer(indexBuffer);
+			DrawIndexed(3, 1);
+			StopRecord();
+			BarrierImage(image);
+		}
 
 		
 		Render();
@@ -67,4 +131,4 @@ int main() {
 	DestroyInstance();
 
 	return 0;
-}
+};

@@ -15,9 +15,16 @@ void DestroyDevice();
 
 // GPU storage
 
+typedef enum {
+	Uniform,
+	Storage,
+	Vertex,
+	Index,
+} BufferType;
+
 // Creates a buffer at specific allocation with specified size
 // Returns pointer to the buffer so it can be deleted afterwards
-void* CreateBuffer(uint32_t size, void* allocation);
+void* CreateBuffer(uint32_t size, void** allocation, BufferType type);
 
 // Returns buffer size from buffer pointer
 uint32_t GetBufferSize(void* buffer);
@@ -27,6 +34,7 @@ uint64_t GetBufferDeviceAddress(void* buffer);
 
 // Deletes buffer from buffer pointer
 void DeleteBuffer(void* buffer);
+
 
 // Creates an image with dimensions of x,y
 // Image will be created at allocation
@@ -40,6 +48,9 @@ void* GetWindowImage(void* window);
 
 // Deletes image from image pointer
 void DeleteImage(void* image);
+
+void BarrierImage(void* image);
+void ClearImage(void* image);
 
 // Shader pipelines
 
@@ -67,15 +78,22 @@ void SetDescriptor(void* shader, void* value, uint32_t binding);
 
 typedef struct {
 	PipelineInfo pipelineInfo;
+
 	unsigned char* vertexSpirv;
+	uint32_t vertexSpirvSize;
 	unsigned char* fragmentSpirv;
+	uint32_t fragmentSpirvSize;
+
+	bool useDepth;
 } RasterizationPipelineInfo;
 void* CreateRasterizationPipeline(RasterizationPipelineInfo info);
 
-void SetIndexBuffer();
-void SetVertexBuffer();
+void Record(void* shader, uint32_t x, uint32_t y, void* image, void* depth);
+void StopRecord();
+void SetIndexBuffer(void* buffer);
+void SetVertexBuffer(void* buffer);
 void Draw();
-void DrawIndexed();
+void DrawIndexed(uint32_t triangles,uint32_t instances);
 
 
 typedef struct {

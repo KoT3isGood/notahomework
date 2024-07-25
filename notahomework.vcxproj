@@ -45,6 +45,7 @@
     <IntDir />
     <NMakeBuildCommandLine>zig build</NMakeBuildCommandLine>
     <AdditionalOptions>/std:c++17</AdditionalOptions>
+    <NMakeIncludeSearchPath>$(ProjectDir)/thirdparty</NMakeIncludeSearchPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <NMakeOutput>notahomework.exe</NMakeOutput>
@@ -65,12 +66,14 @@
     </BuildLog>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\device\nhwdevice.cpp" />
     <ClCompile Include="src\draw\nhwdraw.cpp">
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(ProjectDir)/thirdparty;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(ProjectDir)/thirdparty</AdditionalIncludeDirectories>
     </ClCompile>
     <ClCompile Include="src\nhw.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\device\nhwdevice.h" />
     <ClInclude Include="src\draw\nhwdraw.h" />
     <ClInclude Include="src\nhw.h" />
   </ItemGroup>

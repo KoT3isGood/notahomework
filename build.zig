@@ -30,7 +30,7 @@ pub fn build(b: *std.Build) void {
     const vulkanName = if(target.result.os.tag == .windows) "vulkan-1" else "vulkan";
     nhw.linkSystemLibrary(vulkanName);
     nhw.addCSourceFiles(.{
-        .files = &.{ "src/nhw.cpp", "src/draw/nhwdraw.cpp" },
+        .files = &.{ "src/nhw.cpp", "src/draw/nhwdraw.cpp","src/device/nhwdevice.cpp" },
     });
     b.installArtifact(nhw);
 
