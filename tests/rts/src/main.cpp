@@ -60,6 +60,7 @@ int main() {
 	0.0,1.0,0.0,
 	1.0,-1.0,0.0,
 	0.0,-1.0,0.0,
+	-1.0,-1.0,0.0,
 
 	};
 
@@ -71,20 +72,22 @@ int main() {
 	Log("%f,%f,%f", ((float*)triangleVerticesPtr)[0], ((float*)triangleVerticesPtr)[1], ((float*)triangleVerticesPtr)[2]);
 
 	uint32_t triangleIndexes[] = {
-		0,1,2
+		0,1,2,1,2,3
 	};
 	void* triangleIndexesPtr = nullptr;
 	void* indexBuffer = CreateBuffer(sizeof(triangleIndexes), &triangleIndexesPtr, BufferType::Index);
 	memcpy(triangleIndexesPtr, triangleIndexes, sizeof(triangleIndexes));
-
+	void* image = GetWindowImage(window);
 	
 
 	while (!ShouldClose()) {
 
+		DeleteImage(image);
+		image = GetWindowImage(window);
+
 		uint32_t resolution[2] = { winInfo.width,winInfo.height };
 		
 
-		void* image = GetWindowImage(window);
 		SetDescriptor(shader, image, 0);
 
 
@@ -102,26 +105,23 @@ int main() {
 
 		ClearImage(image);
 		BarrierImage(image);
+		UsePipeline(shader);
+		SetConstants(shader, resolution);
+		Dispatch(resolution[0], resolution[1], 1);
+		BarrierImage(image);
 
-		if (IsKeyPressed(window, 65)) {
-			UsePipeline(shader);
-			SetConstants(shader, resolution);
-			Dispatch(resolution[0], resolution[1], 1);
-			BarrierImage(image);
-		}
+		Record(triShader, resolution[0], resolution[1], image, nullptr);
+		SetVertexBuffer(vertexBuffer);
+		SetIndexBuffer(indexBuffer);
 
+		DrawIndexed(6, 1);
 
-		if (IsKeyPressed(window, 68)) {
-			Record(triShader, resolution[0], resolution[1], image, nullptr);
-			SetVertexBuffer(vertexBuffer);
-			SetIndexBuffer(indexBuffer);
-			DrawIndexed(3, 1);
-			StopRecord();
-			BarrierImage(image);
-		}
+		StopRecord();
 
-		
+		BarrierImage(image);
+
 		Render();
+
 	};
 
 	DestroyPipeline(shader);

@@ -67,8 +67,6 @@ void ResizeSwapchain(void* window);
 
 void CreateDevice()
 {
-	if (!glfwInit()) Mayday("Failed to init GLFW");
-	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
 
 	// Instance
@@ -89,11 +87,11 @@ void CreateDevice()
 	instanceCreateInfo.enabledExtensionCount = sizeof(instanceExtensions) / 8;
 	instanceCreateInfo.ppEnabledExtensionNames = instanceExtensions;
 
-	const char* instanceLayers[] = {
+	/*const char* instanceLayers[] = {
 		"VK_LAYER_KHRONOS_validation"
 	};
 	instanceCreateInfo.enabledLayerCount = sizeof(instanceLayers) / 8;
-	instanceCreateInfo.ppEnabledLayerNames = instanceLayers;
+	instanceCreateInfo.ppEnabledLayerNames = instanceLayers;*/
 	instanceCreateInfo.pApplicationInfo = &appInfo;
 
 	vkCreateInstance(&instanceCreateInfo, 0, &instance);
@@ -445,7 +443,7 @@ void UpdateImage(void* image, void* buffer)
 void DeleteImage(void* image)
 {
 	// Protection against deleting swapchain images
-	if (((ImageHandle*)(image))->image) {
+	if (((ImageHandle*)(image))->x!=UINT32_MAX) {
 		vkDestroyImageView(device, ((ImageHandle*)(image))->imageView,nullptr);
 		vkDestroyImage(device, ((ImageHandle*)(image))->image, nullptr);
 	}
@@ -497,6 +495,8 @@ void* GetWindowImage(void* window)
 	imghandle->image = renderWindows[window].swapchainsImagesReal[imageIndex];
 	imghandle->imageView = renderWindows[window].swapchainsImages[imageIndex];
 	imghandle->format = VK_FORMAT_R8G8B8A8_UNORM;
+	imghandle->x = -1;
+	imghandle->y = -1;
 	return imghandle;
 }
 
@@ -509,8 +509,12 @@ void UsePipeline(void* shader) {
 void SetDescriptor(void* shader, void* value, uint32_t binding)
 {
 	// Reset to prevent bugs
-	if (!((ShaderHandle*)shader)->wdss[binding].pBufferInfo) { delete ((ShaderHandle*)shader)->wdss[binding].pBufferInfo; ((ShaderHandle*)shader)->wdss[binding].pBufferInfo = nullptr;};
-	if (!((ShaderHandle*)shader)->wdss[binding].pImageInfo) { delete ((ShaderHandle*)shader)->wdss[binding].pImageInfo; ((ShaderHandle*)shader)->wdss[binding].pImageInfo = nullptr;};
+	if (((ShaderHandle*)shader)->wdss[binding].pBufferInfo) { 
+		delete ((ShaderHandle*)shader)->wdss[binding].pBufferInfo; 
+		((ShaderHandle*)shader)->wdss[binding].pBufferInfo = nullptr;};
+	if (((ShaderHandle*)shader)->wdss[binding].pImageInfo) { 
+		delete ((ShaderHandle*)shader)->wdss[binding].pImageInfo; 
+		((ShaderHandle*)shader)->wdss[binding].pImageInfo = nullptr;};
 	//if (!((ShaderHandle*)shader)->wdss[binding].pNext) { delete ((ShaderHandle*)shader)->wdss[binding].pNext; ((ShaderHandle*)shader)->wdss[binding].pNext = nullptr;};
 	
 	// Now we set descriptor
