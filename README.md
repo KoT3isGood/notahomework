@@ -10,7 +10,7 @@ Features
  - Written with std:c++17 using Pascal and Camel notation
  - Hardware accelerated vulkan backend with very simple abstraction *that will bite you whenever you make a mistake*
  - Allows to create custom shader pipelines
- - Opensource
+ - Open source
 
 
 Basic example
@@ -80,3 +80,8 @@ Make sure you have installed `zig 0.12.0-dev.3180+83e578a18`.
 Then you can use `zig build` to compile the library. After that you can link it to any application.
 
 *For linux make sure you have installed Vulkan SDK and OpenAL.*
+
+Known bugs:
+
+- Windows don't close properly
+- Vulkan sync can get unstable
