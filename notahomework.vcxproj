@@ -66,15 +66,19 @@
     </BuildLog>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\audio\nhwaudio.cpp" />
     <ClCompile Include="src\device\nhwdevice.cpp" />
     <ClCompile Include="src\draw\nhwdraw.cpp">
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(ProjectDir)/thirdparty</AdditionalIncludeDirectories>
     </ClCompile>
+    <ClCompile Include="src\draw\nhwtexture.cpp" />
     <ClCompile Include="src\nhw.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\audio\nhwaudio.h" />
     <ClInclude Include="src\device\nhwdevice.h" />
     <ClInclude Include="src\draw\nhwdraw.h" />
+    <ClInclude Include="src\draw\nhwtexture.h" />
     <ClInclude Include="src\nhw.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

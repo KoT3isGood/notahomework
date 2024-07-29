@@ -39,7 +39,7 @@ void DeleteBuffer(void* buffer);
 // Creates an image with dimensions of x,y
 // Image will be created at allocation
 // Returns pointer to the image so it can be deleted afterwards
-void* CreateImage(uint32_t x, uint32_t y, void* buffer);
+void* CreateImage(uint32_t x, uint32_t y, unsigned char imageFormat);
 
 // Copies data from the buffer to the image
 void UpdateImage(void* image, void* buffer);
@@ -51,6 +51,8 @@ void DeleteImage(void* image);
 
 void BarrierImage(void* image);
 void ClearImage(void* image);
+void* GenerateSampler(void* image);
+void DestroySampler(void* image);
 
 // Shader pipelines
 

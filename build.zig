@@ -28,9 +28,11 @@ pub fn build(b: *std.Build) void {
     nhw.addIncludePath(.{ .path = "thirdparty/" });
     nhw.addLibraryPath(.{ .path = "thirdparty/" });
     const vulkanName = if(target.result.os.tag == .windows) "vulkan-1" else "vulkan";
+    const openalName = if(target.result.os.tag == .windows) "OpenAL32" else "OpenAL";
     nhw.linkSystemLibrary(vulkanName);
+    nhw.linkSystemLibrary(openalName);
     nhw.addCSourceFiles(.{
-        .files = &.{ "src/nhw.cpp", "src/draw/nhwdraw.cpp","src/device/nhwdevice.cpp" },
+        .files = &.{ "src/nhw.cpp", "src/draw/nhwdraw.cpp","src/draw/nhwtexture.cpp","src/device/nhwdevice.cpp","src/audio/nhwaudio.cpp","thirdparty/stb_vorbis.c" },
     });
     b.installArtifact(nhw);
 

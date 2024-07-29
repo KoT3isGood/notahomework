@@ -4,6 +4,12 @@
 #include <fstream>
 #include "GLFW/glfw3.h"
 
+#ifdef __linux__
+#include <dlfcn.h>
+#else
+#include <Windows.h>
+#endif
+
 nhwInstanceInfo InstanceInfo = {};
 
 void CreateInstance(nhwInstanceInfo createInfo)
@@ -147,4 +153,35 @@ unsigned char* LoadFileData(const char* fileName, uint32_t* fileSizeOut) {
 
 void UnloadFileData(unsigned char* data) {
 	free(data);
-};
+}
+
+
+
+
+void* LoadDynamicLibrary(const char* file)
+{
+#ifdef __linux__
+	return dlopen(file, RTLD_GLOBAL);
+#else
+	return LoadLibraryA(file);
+#endif
+
+}
+void UnloadDynamicLibrary(void* lib)
+{
+#ifdef __linux__
+	dlclose(lib);
+#else
+	FreeLibrary((HMODULE)lib);
+
+#endif
+}
+void* GetFunction(void* lib, const char* func)
+{
+#ifdef __linux__
+	return dlsym(lib, func);
+#else
+	return (void*)GetProcAddress((HMODULE)lib,func);
+#endif
+}
+;

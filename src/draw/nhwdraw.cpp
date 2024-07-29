@@ -56,6 +56,8 @@ uint32_t counter = 0;
 VkSwapchainKHR* swapchains = 0;
 uint32_t* imageIndexes = 0;
 
+bool isRecording = false;
+
 
 
 
@@ -87,11 +89,11 @@ void CreateDevice()
 	instanceCreateInfo.enabledExtensionCount = sizeof(instanceExtensions) / 8;
 	instanceCreateInfo.ppEnabledExtensionNames = instanceExtensions;
 
-	/*const char* instanceLayers[] = {
-		"VK_LAYER_KHRONOS_validation"
-	};
-	instanceCreateInfo.enabledLayerCount = sizeof(instanceLayers) / 8;
-	instanceCreateInfo.ppEnabledLayerNames = instanceLayers;*/
+	//const char* instanceLayers[] = {
+	//	"VK_LAYER_KHRONOS_validation"
+	//};
+	//instanceCreateInfo.enabledLayerCount = sizeof(instanceLayers) / 8;
+	//instanceCreateInfo.ppEnabledLayerNames = instanceLayers;
 	instanceCreateInfo.pApplicationInfo = &appInfo;
 
 	vkCreateInstance(&instanceCreateInfo, 0, &instance);
@@ -242,11 +244,13 @@ void BeginRendering()
 	VkCommandBufferBeginInfo beginInfo{};
 	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	vkBeginCommandBuffer(cmd[imageIndex], &beginInfo);
+	isRecording = true;
 }
 
 void Render()
 {
 
+	isRecording = false;
 	vkEndCommandBuffer(cmd[imageIndex]);
 
 	VkSubmitInfo submitInfo{};
@@ -361,7 +365,7 @@ void* CreateBuffer(uint32_t size, void** allocation, BufferType type)
 
 uint32_t GetBufferSize(void* buffer)
 {
-	return 0;
+	return ((BufferHandle*) buffer)->size;
 }
 
 uint64_t GetBufferDeviceAddress(void* buffer)
@@ -381,9 +385,11 @@ void DeleteBuffer(void* buffer)
 struct ImageHandle {
 	VkImage image;
 	VkImageView imageView;
+	VkDeviceMemory memory;
 	uint32_t x;
 	uint32_t y;
 	VkFormat format;
+	VkSampler sampler = nullptr;
 };
 
 struct ShaderHandle {
@@ -431,19 +437,136 @@ VkImageView MakeImageView(const VkImage& image, VkFormat format) {
 }
 
 
-void* CreateImage(uint32_t x, uint32_t y, void* buffer)
+void* CreateImage(uint32_t x, uint32_t y, unsigned char imageFormat)
 {
+	VkImage image;
+	VkDeviceMemory memory;
+	VkImageCreateInfo imageInfo{};
+	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	imageInfo.imageType = VK_IMAGE_TYPE_2D;
+	imageInfo.extent.width = x > 1 ? x : 1;
+	imageInfo.extent.height = y > 1 ? y : 1;
+	imageInfo.extent.depth = 1;
+	imageInfo.mipLevels = 1;
+	imageInfo.arrayLayers = 1;
+	if (imageFormat == 0) {
+		imageInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+	} else
+	if (imageFormat == 1) {
+		imageInfo.format = VK_FORMAT_D32_SFLOAT;
+	} else
+	if (imageFormat == 2) {
+		imageInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+	}
+	imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	if (imageFormat == 0) {
+		imageInfo.usage = VK_IMAGE_USAGE_STORAGE_BIT;
+	}
+	if (imageFormat == 2) {
+		imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT;
+	}
 	
-	return 0;
+	if (imageInfo.format == VK_FORMAT_D32_SFLOAT) {
+		imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+	};
+	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+
+	//VmaAllocationCreateInfo allocInfo = {};
+	//allocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+	//allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+
+	//vmaCreateImage(device->allocator, &imageInfo, &allocInfo, &textureImage, &allocation, nullptr);
+	vkCreateImage(device, &imageInfo, nullptr, &image);
+
+	VkMemoryRequirements memRequirements;
+	vkGetImageMemoryRequirements(device, image, &memRequirements);
+
+	VkMemoryAllocateInfo allocInfo{};
+	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	allocInfo.allocationSize = memRequirements.size;
+	allocInfo.memoryTypeIndex = FindMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+	vkAllocateMemory(device, &allocInfo, nullptr, &memory);
+	vkBindImageMemory(device, image, memory, 0);
+
+	ImageHandle* imageHandle = new ImageHandle;
+	imageHandle->format = imageInfo.format;
+	imageHandle->image = image;
+	imageHandle->imageView = MakeImageView(image, imageInfo.format);
+	imageHandle->memory = memory;
+	imageHandle->x = x;
+	imageHandle->y = y;
+
+	return imageHandle;
 }
 
 void UpdateImage(void* image, void* buffer)
 {
+	VkCommandBuffer commandBuffer;
+	VkCommandPool commandPool;
+
+	VkCommandPoolCreateInfo cmdPoolCreateInfo{};
+	cmdPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	cmdPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+	cmdPoolCreateInfo.queueFamilyIndex = family;
+	vkCreateCommandPool(device, &cmdPoolCreateInfo, nullptr, &commandPool);
+
+	VkCommandBufferAllocateInfo cmdAllocateInfo{};
+	cmdAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	cmdAllocateInfo.commandBufferCount = 1;
+	cmdAllocateInfo.commandPool = commandPool;
+	vkAllocateCommandBuffers(device, &cmdAllocateInfo, &commandBuffer);
+
+	VkCommandBufferBeginInfo beginInfo{};
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+
+	VkBufferImageCopy region{};
+	region.bufferOffset = 0;
+	region.bufferRowLength = 0;
+	region.bufferImageHeight = 0;
+
+	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	region.imageSubresource.mipLevel = 0;
+	region.imageSubresource.baseArrayLayer = 0;
+	region.imageSubresource.layerCount = 1;
+
+	region.imageOffset = { 0, 0, 0 };
+	region.imageExtent = {
+		((ImageHandle*)image)->x,
+		((ImageHandle*)image)->y,
+		1
+	};
+
+	vkCmdCopyBufferToImage(
+		commandBuffer,
+		((BufferHandle*)buffer)->buffer,
+		((ImageHandle*)image)->image,
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		1,
+		&region
+	);
+
+	vkEndCommandBuffer(commandBuffer);
+
+	VkSubmitInfo submitInfo{};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &commandBuffer;
+
+	vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
+	vkQueueWaitIdle(graphicsQueue);
 }
 void DeleteImage(void* image)
 {
 	// Protection against deleting swapchain images
 	if (((ImageHandle*)(image))->x!=UINT32_MAX) {
+		vkUnmapMemory(device, ((ImageHandle*)(image))->memory);
+		vkFreeMemory(device, ((ImageHandle*)(image))->memory, nullptr);
 		vkDestroyImageView(device, ((ImageHandle*)(image))->imageView,nullptr);
 		vkDestroyImage(device, ((ImageHandle*)(image))->image, nullptr);
 	}
@@ -468,6 +591,45 @@ void ClearImage(void* image)
 		vkCmdClearDepthStencilImage(cmd[imageIndex], ((ImageHandle*)image)->image, VK_IMAGE_LAYOUT_GENERAL, &color, 1, &subresourceRange);
 
 	}
+}
+
+void* GenerateSampler(void* image)
+{
+	ImageHandle* imghandle = (ImageHandle*)image;
+	ImageHandle imgHandle = *imghandle;
+
+
+	VkSamplerCreateInfo samplerInfo{};
+	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	samplerInfo.magFilter = VK_FILTER_LINEAR;
+	samplerInfo.minFilter = VK_FILTER_LINEAR;
+	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerInfo.anisotropyEnable = VK_FALSE;
+	VkPhysicalDeviceProperties properties{};
+	vkGetPhysicalDeviceProperties(physicalDevice, &properties);
+	samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
+	samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+	samplerInfo.unnormalizedCoordinates = VK_FALSE;
+	samplerInfo.compareEnable = VK_FALSE;
+	samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	samplerInfo.mipLodBias = 0.0f;
+	samplerInfo.minLod = 0.0f;
+	samplerInfo.maxLod = 0.0f;
+	VkSampler* sampler = &imgHandle.sampler;
+	vkCreateSampler(device, &samplerInfo, nullptr, sampler);
+
+	ImageHandle* copy = new ImageHandle(imgHandle);
+	return copy;
+}
+
+void DestroySampler(void* image)
+{
+	ImageHandle* imghandle = (ImageHandle*)image;
+	vkDestroySampler(device, imghandle->sampler,nullptr);
+	delete imghandle;
 }
 
 void BarrierImage(void* image) {
@@ -525,7 +687,7 @@ void SetDescriptor(void* shader, void* value, uint32_t binding)
 	case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER: { ((ShaderHandle*)shader)->wdss[binding].pBufferInfo = new VkDescriptorBufferInfo{ bValue->buffer,0,bValue->size}; break; }
 	case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER: { ((ShaderHandle*)shader)->wdss[binding].pBufferInfo = new VkDescriptorBufferInfo{ bValue->buffer,0,bValue->size }; break; }
 	case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE: { ((ShaderHandle*)shader)->wdss[binding].pImageInfo = new VkDescriptorImageInfo{ nullptr, iValue->imageView, VK_IMAGE_LAYOUT_GENERAL}; break; }
-	case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER: { ((ShaderHandle*)shader)->wdss[binding].pImageInfo = new VkDescriptorImageInfo{ nullptr, iValue->imageView, VK_IMAGE_LAYOUT_GENERAL }; break; }
+	case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER: { ((ShaderHandle*)shader)->wdss[binding].pImageInfo = new VkDescriptorImageInfo{ iValue->sampler, iValue->imageView, VK_IMAGE_LAYOUT_GENERAL }; break; }
 	}
 }
 
@@ -600,7 +762,8 @@ void* CreateRasterizationPipeline(RasterizationPipelineInfo info)
 		case DescriptorType::AccelerationStrucutre: bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR; break;
 		}
 		bindings[i].binding = i;
-		bindings->stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+		bindings[i].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT;
+		bindings[i].pImmutableSamplers = nullptr;
 	}
 
 	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo{};
@@ -617,7 +780,7 @@ void* CreateRasterizationPipeline(RasterizationPipelineInfo info)
 
 	VkPushConstantRange pushConstantRange{};
 	pushConstantRange.size = info.pipelineInfo.constantsSize;
-	pushConstantRange.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+	pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT;
 	if (info.pipelineInfo.constantsSize) {
 		pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
 		pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
