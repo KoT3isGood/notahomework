@@ -28,12 +28,17 @@ void logMessage(const char* msg, va_list args) {
 	vprintf(msg,args); printf("\n");
 }
 int main() {
-  nhwInstanceInfo InstanceInfo{
+	nhwInstanceInfo InstanceInfo{
 		logMessage
 	};
 	CreateInstance(InstanceInfo);
 	CreateDevice();
 
+	WindowInfo wi{};
+	wi.title = "my mind";
+	wi.width = 1280;
+	wi.height = 720;
+	CreateWindow(wi);
 
 	ComputePipelineInfo cpi{};
 	unsigned char* computeShader = LoadFileData("computeShader.comp.spv", &cpi.computeSpirvSize);
@@ -47,27 +52,27 @@ int main() {
 	cpi.computeSpirv = computeShader;
 	void* shader = CreateComputePipeline(cpi);
 
-  void* image = GetWindowImage(window);
-  while (!ShouldClose()) {
-    DeleteImage(image);
-		image = GetWindowImage(window);
+	void* image = GetWindowImage(window);
+	while (!ShouldClose()) {
+	DeleteImage(image);
+	image = GetWindowImage(window);
 
-    winInfo = GetWindowInfo(window);
-    uint32_t resolution[2] = { winInfo.width,winInfo.height };
+	winInfo = GetWindowInfo(window);
+	uint32_t resolution[2] = { winInfo.width,winInfo.height };
     
 
-    SetDescriptor(shader, image, 0);
+	SetDescriptor(shader, image, 0);
 
-    BeginRendering();
-    UsePipeline(shader);
-		SetConstants(shader, resolution);
-		Dispatch(resolution[0], resolution[1], 1);
-    Render();
-  }
-	DestroyPipeline(shader);
-	DestroyDevice();
-	DestroyInstance();
-  return 0;
+	BeginRendering();
+	UsePipeline(shader);
+	SetConstants(shader, resolution);
+	Dispatch(resolution[0], resolution[1], 1);
+	Render();
+	}
+		DestroyPipeline(shader);
+		DestroyDevice();
+		DestroyInstance();
+  	return 0;
 }
 
 ```
