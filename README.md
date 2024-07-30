@@ -38,7 +38,7 @@ int main() {
 	wi.title = "my mind";
 	wi.width = 1280;
 	wi.height = 720;
-	CreateWindow(wi);
+	void* window = CreateWindow(wi);
 
 	ComputePipelineInfo cpi{};
 	unsigned char* computeShader = LoadFileData("computeShader.comp.spv", &cpi.computeSpirvSize);
