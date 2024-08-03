@@ -310,17 +310,18 @@ void Render()
 		imageMemoryBarrier.srcAccessMask = VK_ACCESS_NONE_KHR;
 		imageMemoryBarrier.dstAccessMask = VK_ACCESS_NONE_KHR;
 		imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
-		imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+		imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 		imageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 		imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		imageMemoryBarrier.image = ((ImageHandle*)GetWindowImage(window.first))->image;
+		ImageHandle* image = (ImageHandle*)GetWindowImage(window.first);
+		imageMemoryBarrier.image = image->image;
 		imageMemoryBarrier.subresourceRange.baseMipLevel = 0;
 		imageMemoryBarrier.subresourceRange.levelCount = 1;
 		imageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
 		imageMemoryBarrier.subresourceRange.layerCount = 1;
 		vkCmdPipelineBarrier(cmd[imageIndex], VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, 0, 0, 0, 0, 0, 1, &imageMemoryBarrier);
-
+		DeleteImage(image);
 	}
 
 	vkEndCommandBuffer(cmd[imageIndex]);
@@ -462,7 +463,7 @@ void DeleteBuffer(void* buffer)
 
 
 VkImageView MakeImageView(const VkImage& image, VkFormat format) {
-
+	
 	VkImageView imageView = nullptr;
 	VkImageViewCreateInfo imageViewCreateInfo{};
 	imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -621,7 +622,7 @@ void DeleteImage(void* image)
 		vkDestroyImageView(device, ((ImageHandle*)(image))->imageView,nullptr);
 		vkDestroyImage(device, ((ImageHandle*)(image))->image, nullptr);
 	}
-	delete (ImageHandle*)image;
+	delete (ImageHandle*)(image);
 }
 
 void ClearImage(void* image)
