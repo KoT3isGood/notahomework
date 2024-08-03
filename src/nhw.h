@@ -64,3 +64,6 @@ void UnloadFileData(unsigned char* data);
 void* LoadDynamicLibrary(const char* file);
 void UnloadDynamicLibrary(void* lib);
 void* GetFunction(void* lib, const char* func);
+
+// Time related
+float GetTime();

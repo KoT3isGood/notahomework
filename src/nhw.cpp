@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <fstream>
 #include "GLFW/glfw3.h"
+#include <chrono>
 
 #ifdef __linux__
 #include <dlfcn.h>
@@ -183,5 +184,13 @@ void* GetFunction(void* lib, const char* func)
 #else
 	return (void*)GetProcAddress((HMODULE)lib,func);
 #endif
+};
+
+
+auto timer = std::chrono::high_resolution_clock::now();
+
+float GetTime()
+{
+	auto currentTime = std::chrono::high_resolution_clock::now();
+	return float(std::chrono::duration_cast<std::chrono::microseconds>(currentTime - timer).count()) * 0.000001;
 }
-;

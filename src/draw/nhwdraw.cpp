@@ -6,6 +6,7 @@
 #include "vulkan/vulkan_win32.h"
 #endif
 #include "unordered_map"
+#include "vector"
 
 #define VK_FUNCTION_GEN(function) PFN_##function function;
 #define VKI_FUNCTION(function) PFN_##function function = (PFN_##function)vkGetInstanceProcAddr(instance,#function)
@@ -50,6 +51,8 @@ struct RenderWindowInfo {
 	uint32_t height;
 };
 std::unordered_map<void*, RenderWindowInfo> renderWindows;
+std::unordered_map<VkSwapchainKHR, void*> swapchainToWindow;
+std::vector<void*> windowsToResize;
 uint32_t imageIndex = 0;
 
 uint32_t counter = 0;
@@ -62,9 +65,47 @@ bool isRecording = false;
 
 
 
+
 void CreateSwapchain(void* window);
 void DestroySwapchain(void* window);
 void ResizeSwapchain(void* window);
+
+
+struct BufferHandle {
+	VkBuffer buffer;
+	uint32_t size;
+	VkDeviceMemory memory;
+};
+
+struct ImageHandle {
+	VkImage image;
+	VkImageView imageView;
+	VkDeviceMemory memory;
+	uint32_t x;
+	uint32_t y;
+	VkFormat format;
+	VkSampler sampler = nullptr;
+};
+
+struct ShaderHandle {
+	VkPipeline pipeline;
+	VkPipelineLayout pipelineLayout;
+	VkDescriptorSetLayout descriptorSetLayout;
+	VkDescriptorSet descriptorSet;
+
+	uint32_t wdssCount;
+	VkWriteDescriptorSet* wdss;
+
+	uint32_t pushConstantsSize;
+
+	VkShaderStageFlags shaderStageFlags;
+	VkPipelineBindPoint bindPoint;
+
+	// Raster pipeline
+	VkRenderPass renderPass = nullptr;
+	VkFramebuffer framebuffer = nullptr;
+	bool useDepth = false;
+};
 
 
 void CreateDevice()
@@ -174,11 +215,17 @@ void CreateDevice()
 	pdbdaf.bufferDeviceAddress = VK_TRUE;
 
 	VkDeviceCreateInfo deviceCreateInfo{};
+
+
+	VkPhysicalDeviceFeatures features{};
+	features.geometryShader = true;
+
 	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 	deviceCreateInfo.enabledExtensionCount = sizeof(deviceExtensions) / 8;
 	deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions;
 	deviceCreateInfo.queueCreateInfoCount = 1;
 	deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
+	deviceCreateInfo.pEnabledFeatures = &features;
 	deviceCreateInfo.pNext = &pdbdaf;
 	vkCreateDevice(physicalDevice, &deviceCreateInfo, nullptr, &device);
 	vkGetDeviceQueue(device, family, 0, &graphicsQueue);
@@ -214,7 +261,6 @@ void CreateDevice()
 	Log("Created device");
 	
 
-
 }
 
 void BeginRendering()
@@ -233,7 +279,13 @@ void BeginRendering()
 			
 
 		
-			vkAcquireNextImageKHR(device, swapchain.second.swapchain, UINT64_MAX, presentSemaphore[imageIndex], fence[imageIndex], &imageIndexes[counter]);
+			VkResult r = vkAcquireNextImageKHR(device, swapchain.second.swapchain, UINT64_MAX, presentSemaphore[imageIndex], VK_NULL_HANDLE, &imageIndexes[counter]);
+			if (r == VK_ERROR_OUT_OF_DATE_KHR || r == VK_SUBOPTIMAL_KHR) {
+				Log("Found swapchain to resize");
+				windowsToResize.push_back(swapchain.first);
+			}
+
+			swapchainToWindow[swapchain.second.swapchain] = swapchain.first;
 			swapchains[counter] = swapchain.second.swapchain;
 			counter++;
 
@@ -251,12 +303,32 @@ void Render()
 {
 
 	isRecording = false;
+
+	for (auto window: renderWindows){
+		VkImageMemoryBarrier imageMemoryBarrier = {};
+		imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		imageMemoryBarrier.srcAccessMask = VK_ACCESS_NONE_KHR;
+		imageMemoryBarrier.dstAccessMask = VK_ACCESS_NONE_KHR;
+		imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+		imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+		imageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		imageMemoryBarrier.image = ((ImageHandle*)GetWindowImage(window.first))->image;
+		imageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+		imageMemoryBarrier.subresourceRange.levelCount = 1;
+		imageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+		imageMemoryBarrier.subresourceRange.layerCount = 1;
+		vkCmdPipelineBarrier(cmd[imageIndex], VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, 0, 0, 0, 0, 0, 1, &imageMemoryBarrier);
+
+	}
+
 	vkEndCommandBuffer(cmd[imageIndex]);
 
 	VkSubmitInfo submitInfo{};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	VkSemaphore waitSemaphores[] = { presentSemaphore[imageIndex] };
-	VkPipelineStageFlags waitStages = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+	VkPipelineStageFlags waitStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 	submitInfo.waitSemaphoreCount = 1;
 	submitInfo.pWaitSemaphores = waitSemaphores;
 	submitInfo.pWaitDstStageMask = &waitStages;
@@ -268,6 +340,8 @@ void Render()
 	submitInfo.pSignalSemaphores = signalSemaphores;
 
 	vkQueueSubmit(graphicsQueue, 1, &submitInfo, fence[imageIndex]);
+
+	VkResult* results = (VkResult*)malloc(sizeof(VkResult)* counter);
 	VkPresentInfoKHR presentInfo{};
 	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	presentInfo.waitSemaphoreCount = 1;
@@ -275,10 +349,18 @@ void Render()
 	presentInfo.swapchainCount = counter;
 	presentInfo.pSwapchains = swapchains;
 	presentInfo.pImageIndices = imageIndexes;
-	vkQueuePresentKHR(presentQueue, &presentInfo);
+	presentInfo.pResults = results;
+	VkResult r = vkQueuePresentKHR(presentQueue, &presentInfo);
+	for (uint32_t i = 0; i < counter; i++) {
+		if (results[i] == VK_ERROR_OUT_OF_DATE_KHR || results[i] == VK_SUBOPTIMAL_KHR) {
+			windowsToResize.push_back(swapchainToWindow[swapchains[i]]);
+		}
+	};
 
 	imageIndex = (imageIndex + 1) % FRAMES_IN_FLIGHT_COUNT;
 
+	swapchainToWindow.clear();
+	free(results);
 	free(swapchains);
 	free(imageIndexes);
 	counter = 0;
@@ -314,11 +396,6 @@ uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
 	return 0;
 }
 
-struct BufferHandle {
-	VkBuffer buffer;
-	uint32_t size;
-	VkDeviceMemory memory;
-};
 
 void* CreateBuffer(uint32_t size, void** allocation, BufferType type)
 {
@@ -330,12 +407,12 @@ void* CreateBuffer(uint32_t size, void** allocation, BufferType type)
 	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	bufferCreateInfo.size = size;
 
-	VkBufferUsageFlagBits usage;
+	VkBufferUsageFlags usage;
 	switch (type) {
 	case Storage: { usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT; break; }
 	case Uniform: { usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT; break; }
-	case Vertex: { usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT; break; }
-	case Index: { usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT; break; }
+	case Vertex: { usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT; break; }
+	case Index: { usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT; break; }
 
 	}
 
@@ -382,35 +459,7 @@ void DeleteBuffer(void* buffer)
 }
 
 
-struct ImageHandle {
-	VkImage image;
-	VkImageView imageView;
-	VkDeviceMemory memory;
-	uint32_t x;
-	uint32_t y;
-	VkFormat format;
-	VkSampler sampler = nullptr;
-};
 
-struct ShaderHandle {
-	VkPipeline pipeline;
-	VkPipelineLayout pipelineLayout;
-	VkDescriptorSetLayout descriptorSetLayout;
-	VkDescriptorSet descriptorSet;
-
-	uint32_t wdssCount;
-	VkWriteDescriptorSet* wdss;
-
-	uint32_t pushConstantsSize;
-
-	VkShaderStageFlags shaderStageFlags;
-	VkPipelineBindPoint bindPoint;
-
-	// Raster pipeline
-	VkRenderPass renderPass = nullptr;
-	VkFramebuffer framebuffer = nullptr;
-	bool useDepth = false;
-};
 
 VkImageView MakeImageView(const VkImage& image, VkFormat format) {
 
@@ -472,6 +521,8 @@ void* CreateImage(uint32_t x, uint32_t y, unsigned char imageFormat)
 	};
 	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+
+	imageInfo.usage = imageInfo.usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
 	//VmaAllocationCreateInfo allocInfo = {};
 	//allocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
@@ -580,13 +631,14 @@ void ClearImage(void* image)
 	subresourceRange.levelCount = 1;
 	subresourceRange.baseArrayLayer = 0;
 	subresourceRange.layerCount = 1;
-	subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 
 	if (((ImageHandle*)image)->format != VK_FORMAT_D32_SFLOAT) {
+		subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		VkClearColorValue color = VkClearColorValue{ 0,0,0,0 };
 		vkCmdClearColorImage(cmd[imageIndex], ((ImageHandle*)image)->image, VK_IMAGE_LAYOUT_GENERAL, &color, 1, &subresourceRange);
 	}
 	else {
+		subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
 		VkClearDepthStencilValue color = VkClearDepthStencilValue{ 1,0 };
 		vkCmdClearDepthStencilImage(cmd[imageIndex], ((ImageHandle*)image)->image, VK_IMAGE_LAYOUT_GENERAL, &color, 1, &subresourceRange);
 
@@ -639,10 +691,15 @@ void BarrierImage(void* image) {
 	imageMemoryBarrier.dstAccessMask = VK_ACCESS_NONE_KHR;
 	imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
 	imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+	imageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	if (((ImageHandle*)image)->format == VK_FORMAT_D32_SFLOAT) {
+		imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+		imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+		imageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+	};
 	imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 	imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 	imageMemoryBarrier.image = ((ImageHandle*)image)->image;  // The VkImage being transitioned
-	//aaimageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	imageMemoryBarrier.subresourceRange.baseMipLevel = 0;
 	imageMemoryBarrier.subresourceRange.levelCount = 1;
 	imageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
@@ -1308,7 +1365,7 @@ void CreateSwapchain(void* window) {
 	swapchainCreateInfo.imageExtent = capabilies.minImageExtent;
 	swapchainCreateInfo.imageArrayLayers = 1;
 	swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-	swapchainCreateInfo.presentMode = VK_PRESENT_MODE_FIFO_KHR;
+	swapchainCreateInfo.presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
 
 	swapchainCreateInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
 	swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
@@ -1349,6 +1406,7 @@ void ResizeSwapchain(void* window)
 	vkDestroySwapchainKHR(device, renderWindows[window].swapchain, nullptr);
 	vkDestroySurfaceKHR(instance, renderWindows[window].surface, nullptr);
 	CreateSwapchain(window);
+	vkDeviceWaitIdle(device);
 }
 
 #undef CreateWindow
@@ -1383,7 +1441,8 @@ void DestroyWindow(void* window)
 bool ShouldClose() {
 
 	glfwPollEvents();
-	vkDeviceWaitIdle(device);
+	vkQueueWaitIdle(graphicsQueue);
+	vkQueueWaitIdle(presentQueue);
 	for (auto& window : windows) {
 		glfwGetWindowSize((GLFWwindow*)window.first, (int*)&window.second.width, (int*)&window.second.height);
 		glfwGetWindowPos((GLFWwindow*)window.first, (int*)&window.second.x, (int*)&window.second.y);
@@ -1397,9 +1456,14 @@ bool ShouldClose() {
 		void* window = swapchain.first;
 		if (!window) continue;
 		if (swapchain.second.width != wi.width || swapchain.second.height != wi.height) {
-			ResizeSwapchain(window);
+			//ResizeSwapchain(window);
 		}
 	}
+
+	for (void* window : windowsToResize) {
+		ResizeSwapchain(window);
+	}
+	windowsToResize.clear();
 	return !windows.size();
 }
 
