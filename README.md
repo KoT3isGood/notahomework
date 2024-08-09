@@ -41,7 +41,7 @@ int main() {
 	winInfo.title = "my mind";
 	winInfo.width = 1280;
 	winInfo.height = 720;
-	void* window = CreateWindow(winInfo);
+	void* window = nhwCreateWindow(winInfo);
 
 	// Creates pipeline
 
@@ -144,7 +144,7 @@ int main() {
 
 		timer = GetTime();
 
-	    winInfo = GetWindowInfo(window);
+	    winInfo = nhwGetWindowInfo(window);
         uint32_t resolution[2] = { winInfo.width,winInfo.height };
 
 		if (resolution[0]!=prevresolution[0] || resolution[1]!=prevresolution[1] ) {
