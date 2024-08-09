@@ -1,4 +1,8 @@
 #pragma once
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void InitAudio();
 void DeinitAudio();
 
@@ -9,3 +13,7 @@ void SetSoundPosition(void* source, void* pos);
 void DestroySource(void* source);
 
 void DestroySound(void* sound);
+
+#ifdef __cplusplus
+}
+#endif

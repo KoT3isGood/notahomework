@@ -1121,7 +1121,7 @@ void Record(void* shader, uint32_t x, uint32_t y, void* image, void* depth)
 	if (((ShaderHandle*)shader)->useDepth) {
 		imageViews[1] = ((ImageHandle*)depth)->imageView;
 	}
-
+	
 
 	VkFramebufferCreateInfo framebufferInfo{};
 	framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -1135,6 +1135,8 @@ void Record(void* shader, uint32_t x, uint32_t y, void* image, void* depth)
 		vkDestroyFramebuffer(device, ((ShaderHandle*)shader)->framebuffer, nullptr);
 	}
 	vkCreateFramebuffer(device, &framebufferInfo, nullptr, &((ShaderHandle*)shader)->framebuffer);
+
+	free(imageViews);
 
 	VkRenderPassBeginInfo renderPassInfo{};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;

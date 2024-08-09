@@ -6,37 +6,28 @@ pub fn build(b: *std.Build) void {
 
     const glfw = getGlfw(b, optimize, target);
 
-    
-    
-
-
-
-
-
-
-
-
-
-
-    const nhw = b.addStaticLibrary(.{
-        .name = "nhw",
-        .target = target,
-        .optimize = optimize,
-    });
+    const nhw = b.addStaticLibrary(.{ .name = "nhw", .target = target, .optimize = optimize, .root_source_file = .{ .path = "src/nhwbuildroot.zig" } });
     nhw.linkLibrary(glfw);
+    nhw.linkLibC();
     nhw.linkLibCpp();
+    nhw.addIncludePath(.{ .path = "src/" });
     nhw.addIncludePath(.{ .path = "thirdparty/" });
     nhw.addLibraryPath(.{ .path = "thirdparty/" });
-    const vulkanName = if(target.result.os.tag == .windows) "vulkan-1" else "vulkan";
-    const openalName = if(target.result.os.tag == .windows) "OpenAL32" else "OpenAL";
+    const vulkanName = if (target.result.os.tag == .windows) "vulkan-1" else "vulkan";
+    const openalName = if (target.result.os.tag == .windows) "OpenAL32" else "OpenAL";
     nhw.linkSystemLibrary(vulkanName);
     nhw.linkSystemLibrary(openalName);
     nhw.addCSourceFiles(.{
-        .files = &.{ "src/nhw.cpp", "src/draw/nhwdraw.cpp","src/draw/nhwtexture.cpp","src/device/nhwdevice.cpp","src/audio/nhwaudio.cpp","thirdparty/stb_vorbis.c" },
+        .files = &.{
+            "src/nhw.cpp",
+            "src/draw/nhwdraw.cpp",
+            "src/draw/nhwtexture.cpp",
+            "src/device/nhwdevice.cpp",
+            "src/audio/nhwaudio.cpp",
+            "thirdparty/stb_vorbis.c",
+        },
     });
     b.installArtifact(nhw);
-
-    
 }
 
 fn getGlfw(

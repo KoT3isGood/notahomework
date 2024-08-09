@@ -1,6 +1,9 @@
 #pragma once
 #include "../nhw.h"
 #include <stdint.h>
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 // Device
 
@@ -143,3 +146,7 @@ WindowInfo GetWindowInfo(void* window);
 void SetWindowInfo(void* window, WindowInfo windowInfo);
 void DestroyWindow(void* window);
 bool ShouldClose();
+
+#ifdef __cplusplus
+}
+#endif

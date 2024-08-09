@@ -130,10 +130,9 @@ unsigned char* LoadFileData(const char* fileName) {
 	file.close();
 
 	return data;
-};
-
-unsigned char* LoadFileData(const char* fileName, uint32_t* fileSizeOut) {
-
+}
+unsigned char* LoadFileDataSized(const char* fileName, uint32_t* fileSizeOut)
+{
 	std::ifstream file(fileName, std::ios::ate | std::ios::binary);
 
 	if (!file.is_open()) {
@@ -151,6 +150,7 @@ unsigned char* LoadFileData(const char* fileName, uint32_t* fileSizeOut) {
 
 	return data;
 };
+
 
 void UnloadFileData(unsigned char* data) {
 	free(data);
