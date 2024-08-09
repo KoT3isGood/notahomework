@@ -746,6 +746,7 @@ void SetDescriptor(void* shader, void* value, uint32_t binding)
 	case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER: { ((ShaderHandle*)shader)->wdss[binding].pBufferInfo = new VkDescriptorBufferInfo{ bValue->buffer,0,bValue->size }; break; }
 	case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE: { ((ShaderHandle*)shader)->wdss[binding].pImageInfo = new VkDescriptorImageInfo{ nullptr, iValue->imageView, VK_IMAGE_LAYOUT_GENERAL}; break; }
 	case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER: { ((ShaderHandle*)shader)->wdss[binding].pImageInfo = new VkDescriptorImageInfo{ iValue->sampler, iValue->imageView, VK_IMAGE_LAYOUT_GENERAL }; break; }
+	default: { break; }
 	}
 }
 
@@ -1091,8 +1092,8 @@ void* CreateRasterizationPipeline(RasterizationPipelineInfo info)
 			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 			.dstSet = descSet,
 			.dstBinding = i,
-			.descriptorType = bindings[i].descriptorType,
 			.descriptorCount = 1,
+			.descriptorType = bindings[i].descriptorType,
 		};
 	};
 
@@ -1308,8 +1309,8 @@ void* CreateComputePipeline(ComputePipelineInfo info)
 			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 			.dstSet = descSet,
 			.dstBinding = i,
-			.descriptorType = bindings[i].descriptorType,
 			.descriptorCount = 1,
+			.descriptorType = bindings[i].descriptorType,
 		};	
 	};
 
@@ -1385,7 +1386,7 @@ void CreateSwapchain(void* window) {
 	}
 
 	
-	WindowInfo wi = GetWindowInfo(window);
+	WindowInfo wi = nhwGetWindowInfo(window);
 	rwi.width = wi.width;
 	rwi.height = wi.height;
 	renderWindows[window] = rwi;
@@ -1412,8 +1413,7 @@ void ResizeSwapchain(void* window)
 	vkDeviceWaitIdle(device);
 }
 
-#undef CreateWindow
-void* CreateWindow(WindowInfo windowInfo)
+void* nhwCreateWindow(WindowInfo windowInfo)
 {
 	GLFWwindow* window = glfwCreateWindow(windowInfo.width,windowInfo.height,windowInfo.title, nullptr,nullptr);
 	windows[window] = windowInfo;
@@ -1424,17 +1424,17 @@ void* CreateWindow(WindowInfo windowInfo)
 }
 
 
-WindowInfo GetWindowInfo(void* window)
+WindowInfo nhwGetWindowInfo(void* window)
 {
 	return windows[window];
 }
 
-void SetWindowInfo(void* window, WindowInfo windowInfo)
+void nhwSetWindowInfo(void* window, WindowInfo windowInfo)
 {
 	windows[window] = windowInfo;
 }
 
-void DestroyWindow(void* window)
+void nhwDestroyWindow(void* window)
 {
 	DestroySwapchain(window);
 	windows.erase(window);
@@ -1450,7 +1450,7 @@ bool ShouldClose() {
 		glfwGetWindowSize((GLFWwindow*)window.first, (int*)&window.second.width, (int*)&window.second.height);
 		glfwGetWindowPos((GLFWwindow*)window.first, (int*)&window.second.x, (int*)&window.second.y);
 		if (glfwWindowShouldClose((GLFWwindow*)window.first)) {
-			DestroyWindow(window.first);
+			nhwDestroyWindow(window.first);
 			glfwWaitEvents();
 		};
 	}

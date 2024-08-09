@@ -141,10 +141,10 @@ typedef struct {
 } WindowInfo;
 
 // Creates window
-void* CreateWindow(WindowInfo windowInfo);
-WindowInfo GetWindowInfo(void* window);
-void SetWindowInfo(void* window, WindowInfo windowInfo);
-void DestroyWindow(void* window);
+void* nhwCreateWindow(WindowInfo windowInfo);
+WindowInfo nhwGetWindowInfo(void* window);
+void nhwSetWindowInfo(void* window, WindowInfo windowInfo);
+void nhwDestroyWindow(void* window);
 bool ShouldClose();
 
 #ifdef __cplusplus
