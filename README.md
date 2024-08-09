@@ -54,8 +54,8 @@ int main() {
 	DescriptorType descriptors[] = { DescriptorType::UniformBuffer, DescriptorType::StorageBuffer, DescriptorType::StorageBuffer};
 	rpi.pipelineInfo.descriptorTypes = descriptors;
 
-	unsigned char* fragmentShader = LoadFileData("shader.frag.spv", &rpi.fragmentSpirvSize);
-	unsigned char* vertexShader = LoadFileData("shader.vert.spv", &rpi.vertexSpirvSize);
+	unsigned char* fragmentShader = LoadFileDataSized("shader.frag.spv", &rpi.fragmentSpirvSize);
+	unsigned char* vertexShader = LoadFileDataSized("shader.vert.spv", &rpi.vertexSpirvSize);
 	rpi.fragmentSpirv = fragmentShader;
 	rpi.vertexSpirv = vertexShader;
 	rpi.useDepth = true;
