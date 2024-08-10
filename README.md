@@ -6,8 +6,8 @@ it is highly inspired by raylib and tries to fix all of it's disadvantages
 
 Features
 --------
-
- - Written with std:c++17 using Pascal and Camel notation
+ - Supports C, C++
+ - Written with std:c++17 and zig using Pascal and Camel notation
  - Hardware accelerated vulkan backend with very simple abstraction *that will bite you whenever you make a mistake*
  - Allows to create custom shader pipelines
  - Open source
