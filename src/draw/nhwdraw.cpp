@@ -130,11 +130,11 @@ void CreateDevice()
 	instanceCreateInfo.enabledExtensionCount = sizeof(instanceExtensions) / 8;
 	instanceCreateInfo.ppEnabledExtensionNames = instanceExtensions;
 
-	//const char* instanceLayers[] = {
-	//	"VK_LAYER_KHRONOS_validation"
-	//};
-	//instanceCreateInfo.enabledLayerCount = sizeof(instanceLayers) / 8;
-	//instanceCreateInfo.ppEnabledLayerNames = instanceLayers;
+	const char* instanceLayers[] = {
+		"VK_LAYER_KHRONOS_validation"
+	};
+	instanceCreateInfo.enabledLayerCount = sizeof(instanceLayers) / 8;
+	instanceCreateInfo.ppEnabledLayerNames = instanceLayers;
 	instanceCreateInfo.pApplicationInfo = &appInfo;
 
 	vkCreateInstance(&instanceCreateInfo, 0, &instance);
@@ -208,11 +208,17 @@ void CreateDevice()
 
 	const char* deviceExtensions[] = {
 	VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+	VK_KHR_FRAGMENT_SHADER_BARYCENTRIC_EXTENSION_NAME
 	};
+	VkPhysicalDeviceFragmentShaderBarycentricFeaturesKHR barycentrics = {};
+	barycentrics.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_BARYCENTRIC_FEATURES_KHR;
+	barycentrics.fragmentShaderBarycentric = VK_TRUE;
 
 	VkPhysicalDeviceBufferDeviceAddressFeatures pdbdaf{};
 	pdbdaf.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
 	pdbdaf.bufferDeviceAddress = VK_TRUE;
+	pdbdaf.pNext = &barycentrics;
+	
 
 	VkDeviceCreateInfo deviceCreateInfo{};
 

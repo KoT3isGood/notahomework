@@ -66,11 +66,11 @@ void SetConstants(void* shader,void* constants);
 void DestroyPipeline(void* pipeline);
 
 typedef enum {
-	UniformBuffer = 0x1,
-	StorageBuffer = 0x2,
-	Image = 0x4,
-	SampledImage = 0x8,
-	AccelerationStrucutre = 0x10,
+	UniformBuffer = 1,
+	StorageBuffer = 2,
+	Image = 3,
+	SampledImage = 4,
+	AccelerationStrucutre = 5,
 } DescriptorType;
 
 typedef struct {

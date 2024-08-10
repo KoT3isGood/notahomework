@@ -24,6 +24,7 @@ pub fn build(b: *std.Build) void {
             "src/draw/nhwtexture.cpp",
             "src/device/nhwdevice.cpp",
             "src/audio/nhwaudio.cpp",
+            "src/networking/nhwnetworking.cpp",
             "thirdparty/stb_vorbis.c",
         },
     });
