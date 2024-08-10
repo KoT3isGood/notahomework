@@ -62,19 +62,18 @@ int main() {
 	rpi.vertexSpirv = vertexShader;
 	rpi.useDepth = true;
 	void* triShader = CreateRasterizationPipeline(rpi);
-    Log("Setting up this crap");
 
 
 	// Creates buffer for vertices and indicies
-    float triangleVertices[] = {
+    	float triangleVertices[] = {
 	-1.000000, -1.000000, -1.000000,
-    -1.000000, -1.000000,  1.000000,
-    -1.000000,  1.000000, -1.000000,
-    -1.000000,  1.000000,  1.000000,
-     1.000000, -1.000000, -1.000000,
-     1.000000, -1.000000,  1.000000,
-     1.000000,  1.000000, -1.000000,
-     1.000000,  1.000000,  1.000000,
+    	-1.000000, -1.000000,  1.000000,
+    	-1.000000,  1.000000, -1.000000,
+    	-1.000000,  1.000000,  1.000000,
+    	 1.000000, -1.000000, -1.000000,
+    	 1.000000, -1.000000,  1.000000,
+    	 1.000000,  1.000000, -1.000000,
+	 1.000000,  1.000000,  1.000000,
 
 	};
 
@@ -85,7 +84,7 @@ int main() {
 	memcpy(triangleVerticesPtr, triangleVertices, sizeof(triangleVertices));
 
 	uint32_t triangleIndexes[] = {
-		1,2,0,
+	1,2,0,
         3,6,2,
         7,4,6,
         5,0,4,
@@ -105,32 +104,32 @@ int main() {
 
 	// View and projection matrices
 
-    float transformMatrix[16] = {
+    	float transformMatrix[16] = {
         1,0,0,0,
         0,1,0,0,
         0,0,1,0,
         0,0,-4,1,
-    };
+    	};
 
 
-    float s = 1/tan(90/2*3.1415926/180);
-    float f = 1000.0;
-    float n = 0.001;
+    	float s = 1/tan(90/2*3.1415926/180);
+    	float f = 1000.0;
+    	float n = 0.001;
 
-    float projectionMatrix[16] = {
+    	float projectionMatrix[16] = {
         s,0,0,0,
         0,-s,0,0,
         0,0,(f+n)/(n-f),-1,
         0,0,2*(f*n)/(n-f),0,
-    };
+    	};
     
 	void* matrixbufptr = 0;
 	void* matricesBuffer = CreateBuffer(192, &matrixbufptr, Uniform);
-    memcpy(matrixbufptr,transformMatrix, sizeof(transformMatrix));
-    memcpy((void*)((uint64_t)matrixbufptr+sizeof(transformMatrix)),projectionMatrix,sizeof(projectionMatrix));
+    	memcpy(matrixbufptr,transformMatrix, sizeof(transformMatrix));
+    	memcpy((void*)((uint64_t)matrixbufptr+sizeof(transformMatrix)),projectionMatrix,sizeof(projectionMatrix));
 
 	void* depth = CreateImage(1280,720,1);
-    uint32_t prevresolution[2] = { winInfo.width,winInfo.height };
+    	uint32_t prevresolution[2] = { winInfo.width,winInfo.height };
 
 
 
@@ -146,8 +145,8 @@ int main() {
 
 		timer = GetTime();
 
-	    winInfo = nhwGetWindowInfo(window);
-        uint32_t resolution[2] = { winInfo.width,winInfo.height };
+	    	winInfo = nhwGetWindowInfo(window);
+		uint32_t resolution[2] = { winInfo.width,winInfo.height };
 
 		if (resolution[0]!=prevresolution[0] || resolution[1]!=prevresolution[1] ) {
 			DeleteImage(depth);
@@ -159,16 +158,16 @@ int main() {
 
 		float aspect = (float)resolution[1]/ (float)resolution[0];
 		projectionMatrix[0]=s*aspect;
-    	memcpy((void*)((uint64_t)matrixbufptr+sizeof(transformMatrix)),projectionMatrix,sizeof(projectionMatrix));
+    		memcpy((void*)((uint64_t)matrixbufptr+sizeof(transformMatrix)),projectionMatrix,sizeof(projectionMatrix));
 
 		float objectMatrix[16] = {
     		sin(timer),0,cos(timer),0,
         	0,1,0,0,
         	-cos(timer),0,sin(timer),0,
         	0,0,0,1,
-    	};
+    		};
 	
-    	memcpy((void*)((uint64_t)matrixbufptr+sizeof(transformMatrix)*2),objectMatrix,sizeof(objectMatrix));
+    		memcpy((void*)((uint64_t)matrixbufptr+sizeof(transformMatrix)*2),objectMatrix,sizeof(objectMatrix));
 
 		// Set descriptor sets
 
@@ -177,16 +176,16 @@ int main() {
 		SetDescriptor(triShader, vertexBuffer, 2);
 
 		
-	    BeginRendering();
+	    	BeginRendering();
 			// Clears images so stuff can be overdrawn
 			ClearImage(image);
 			ClearImage(depth);
 
 			
 
-            UsePipeline(triShader);
+			UsePipeline(triShader);
 
-	        Record(triShader, resolution[0], resolution[1], image, depth);
+			Record(triShader, resolution[0], resolution[1], image, depth);
 				SetVertexBuffer(vertexBuffer);
 				SetIndexBuffer(indexBuffer);
 				DrawIndexed(36, 1);
@@ -196,7 +195,7 @@ int main() {
 			BarrierImage(depth);
 
 			StopRecord();
-	     Render();
+	     	Render();
 
 		 // Dealloc window image
 
