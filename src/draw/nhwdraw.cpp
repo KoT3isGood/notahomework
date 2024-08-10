@@ -130,11 +130,11 @@ void CreateDevice()
 	instanceCreateInfo.enabledExtensionCount = sizeof(instanceExtensions) / 8;
 	instanceCreateInfo.ppEnabledExtensionNames = instanceExtensions;
 
-	const char* instanceLayers[] = {
-		"VK_LAYER_KHRONOS_validation"
-	};
-	instanceCreateInfo.enabledLayerCount = sizeof(instanceLayers) / 8;
-	instanceCreateInfo.ppEnabledLayerNames = instanceLayers;
+	//const char* instanceLayers[] = {
+	//	"VK_LAYER_KHRONOS_validation"
+	//};
+	//instanceCreateInfo.enabledLayerCount = sizeof(instanceLayers) / 8;
+	//instanceCreateInfo.ppEnabledLayerNames = instanceLayers;
 	instanceCreateInfo.pApplicationInfo = &appInfo;
 
 	vkCreateInstance(&instanceCreateInfo, 0, &instance);

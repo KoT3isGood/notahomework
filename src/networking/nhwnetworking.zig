@@ -66,14 +66,13 @@ const Client = struct {
 
     fn run(self: *Client) !void {
         const stream = self.stream;
-        _ = try stream.write("connected\n");
         while (true) {
             var buf: [100]u8 = undefined;
             const n = try stream.read(&buf);
             if (n == 0) {
                 return;
             }
-            c.MessageCallback(@constCast(&buf[0]), @intCast(n - 2));
+            c.MessageCallback(@constCast(&buf[0]), @intCast(n - 2), self);
         }
     }
     fn sendMessage(self: *Client, message: [*c]const u8) void {

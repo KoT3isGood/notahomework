@@ -13,11 +13,11 @@ extern "C" {
 	// Sends message to the client
     void SendMessage(void* client, const char* message);
 
-	typedef void(*RecieveMessageCallback)(const char*, uint32_t size);
+	typedef void(*RecieveMessageCallback)(const char*, uint32_t size, void* client);
 	void SetMessageCallbackFunction(RecieveMessageCallback callback);
 
 	// Server calls will call message set in SetMessageCallbackFunction
-	void MessageCallback(const char* message, uint32_t size);
+	void MessageCallback(const char* message, uint32_t size, void* client);
 
 #ifdef __cplusplus
 }
