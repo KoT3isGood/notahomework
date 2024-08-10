@@ -20,24 +20,26 @@ Basic example
 #include "draw/nhwdraw.h"
 #include "stdio.h"
 #include "stdarg.h"
-#include <cstring>
+#include <string.h>
 #include <math.h>
 
 void logMessage(const char* msg, va_list args) {
     vprintf(msg, args);printf("\n");
 };
 
+
 int main() {
+
 	// Inits instance and device
-	nhwInstanceInfo InstanceInfo{
-		logMessage
-	};
+	nhwInstanceInfo InstanceInfo;
+	InstanceInfo.logCallback = logMessage;
+
 	CreateInstance(InstanceInfo);
 	CreateDevice();
 
 	// Creates Window
 
-	WindowInfo winInfo{};
+	WindowInfo winInfo;
 	winInfo.title = "my mind";
 	winInfo.width = 1280;
 	winInfo.height = 720;
@@ -45,13 +47,13 @@ int main() {
 
 	// Creates pipeline
 
-	RasterizationPipelineInfo rpi{};
+	RasterizationPipelineInfo rpi;
 
-	rpi.pipelineInfo = {};
 	rpi.pipelineInfo.constantsSize = 8;
 	rpi.pipelineInfo.descriptorsCount = 3;
-    
-	DescriptorType descriptors[] = { DescriptorType::UniformBuffer, DescriptorType::StorageBuffer, DescriptorType::StorageBuffer};
+
+	DescriptorType descriptors[3] =
+	{ UniformBuffer, StorageBuffer,StorageBuffer };
 	rpi.pipelineInfo.descriptorTypes = descriptors;
 
 	unsigned char* fragmentShader = LoadFileDataSized("shader.frag.spv", &rpi.fragmentSpirvSize);
@@ -76,9 +78,9 @@ int main() {
 
 	};
 
-	void* triangleVerticesPtr = nullptr;
+	void* triangleVerticesPtr = 0;
 
-	void* vertexBuffer = CreateBuffer(sizeof(triangleVertices),&triangleVerticesPtr, BufferType::Vertex);
+	void* vertexBuffer = CreateBuffer(sizeof(triangleVertices),&triangleVerticesPtr, Vertex);
 
 	memcpy(triangleVerticesPtr, triangleVertices, sizeof(triangleVertices));
 
@@ -96,8 +98,8 @@ int main() {
         6,4,0,
         3,1,5
 	};
-	void* triangleIndexesPtr = nullptr;
-	void* indexBuffer = CreateBuffer(sizeof(triangleIndexes), &triangleIndexesPtr, BufferType::Index);
+	void* triangleIndexesPtr = 0;
+	void* indexBuffer = CreateBuffer(sizeof(triangleIndexes), &triangleIndexesPtr, Index);
 	memcpy(triangleIndexesPtr, triangleIndexes, sizeof(triangleIndexes));
 
 
@@ -115,15 +117,15 @@ int main() {
     float f = 1000.0;
     float n = 0.001;
 
-    float projectionMatrix[16] {
+    float projectionMatrix[16] = {
         s,0,0,0,
         0,-s,0,0,
         0,0,(f+n)/(n-f),-1,
         0,0,2*(f*n)/(n-f),0,
     };
     
-	void* matrixbufptr = nullptr;
-	void* matricesBuffer = CreateBuffer(192, &matrixbufptr, BufferType::Uniform);
+	void* matrixbufptr = 0;
+	void* matricesBuffer = CreateBuffer(192, &matrixbufptr, Uniform);
     memcpy(matrixbufptr,transformMatrix, sizeof(transformMatrix));
     memcpy((void*)((uint64_t)matrixbufptr+sizeof(transformMatrix)),projectionMatrix,sizeof(projectionMatrix));
 
@@ -155,7 +157,7 @@ int main() {
 		prevresolution[0] =resolution[0];
 		prevresolution[1] =resolution[1];
 
-		float aspect = float(resolution[1])/float(resolution[0]);
+		float aspect = (float)resolution[1]/ (float)resolution[0];
 		projectionMatrix[0]=s*aspect;
     	memcpy((void*)((uint64_t)matrixbufptr+sizeof(transformMatrix)),projectionMatrix,sizeof(projectionMatrix));
 
@@ -205,6 +207,7 @@ int main() {
 	DestroyPipeline(triShader);
 	DestroyDevice();
 	DestroyInstance();
+
   	return 0;
 }
 
