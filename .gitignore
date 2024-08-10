@@ -364,6 +364,7 @@ FodyWeavers.xsd
 
 zig-out/
 zig-cache/
+.zig-cache/
 *.vcxproj.filters
 *.vcxproj.user
 

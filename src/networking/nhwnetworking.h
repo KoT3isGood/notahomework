@@ -1,17 +1,17 @@
 #pragma once
 #include <stdint.h>
 
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 	void CreateServer(uint16_t port);
-	void ConnectToServer(const char* ip);
-	unsigned char* RecieveAsClient();
-	unsigned char* RecieveAsServer();
-	void SendToServer(unsigned char* message);
-	void SendToClient(unsigned char* message);
-	void UpdateServer();
-	void UpdateClient();
+
+	// Returns pointer to accepted client, only 1 per iteration
+	void* ConnectClients();
+
+	// Sends message to the client
+    void SendMessage(void* client);
 
 #ifdef __cplusplus
 }

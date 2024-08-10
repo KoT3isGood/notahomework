@@ -6,13 +6,13 @@ pub fn build(b: *std.Build) void {
 
     const glfw = getGlfw(b, optimize, target);
 
-    const nhw = b.addStaticLibrary(.{ .name = "nhw", .target = target, .optimize = optimize, .root_source_file = .{ .path = "src/nhwbuildroot.zig" } });
+    const nhw = b.addStaticLibrary(.{ .name = "nhw", .target = target, .optimize = optimize, .root_source_file = b.path("src/nhwbuildroot.zig")});
     nhw.linkLibrary(glfw);
     nhw.linkLibC();
     nhw.linkLibCpp();
-    nhw.addIncludePath(.{ .path = "src/" });
-    nhw.addIncludePath(.{ .path = "thirdparty/" });
-    nhw.addLibraryPath(.{ .path = "thirdparty/" });
+    nhw.addIncludePath(b.path("src/"));
+    nhw.addIncludePath(b.path("thirdparty/"));
+    nhw.addLibraryPath(b.path("thirdparty/"));
     const vulkanName = if (target.result.os.tag == .windows) "vulkan-1" else "vulkan";
     const openalName = if (target.result.os.tag == .windows) "OpenAL32" else "OpenAL";
     nhw.linkSystemLibrary(vulkanName);

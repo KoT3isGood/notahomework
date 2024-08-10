@@ -1,5 +1,5 @@
 #include "nhwdevice.h"
-#include "GLFW\glfw3.h"
+#include "GLFW/glfw3.h"
 
 bool IsKeyPressed(void* window, uint32_t key)
 {
