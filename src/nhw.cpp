@@ -32,6 +32,9 @@ void Log(const char* msg, ...)
 	if (InstanceInfo.logCallback) {
 		InstanceInfo.logCallback(msg, args);
 	}
+	else {
+		vprintf(msg, args); printf("\n");
+	}
 	va_end(args);
 }
 

@@ -1,7 +1,6 @@
 const std = @import("std");
 const net = std.net;
 const c = @cImport({
-    @cInclude("stdbool.h");
     @cInclude("nhw.h");
 });
 

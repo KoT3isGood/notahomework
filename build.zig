@@ -6,7 +6,7 @@ pub fn build(b: *std.Build) void {
 
     const glfw = getGlfw(b, optimize, target);
 
-    const nhw = b.addStaticLibrary(.{ .name = "nhw", .target = target, .optimize = optimize, .root_source_file = b.path("src/nhwbuildroot.zig")});
+    const nhw = b.addStaticLibrary(.{ .name = "nhw", .target = target, .optimize = optimize, .root_source_file = b.path("nhwbuildroot.zig")});
     nhw.linkLibrary(glfw);
     nhw.linkLibC();
     nhw.linkLibCpp();
