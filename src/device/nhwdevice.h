@@ -2,6 +2,12 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+/*
+Devices Input Subsystem
+Description:
+This subsystem allows to use keyboard, mouse and other types of input
+*/
+
 #ifdef __cplusplus
 extern "C" {
 #endif

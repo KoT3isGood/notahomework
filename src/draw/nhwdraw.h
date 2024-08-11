@@ -1,11 +1,79 @@
 #pragma once
 #include "../nhw.h"
 #include <stdint.h>
+
+/*
+Drawing subsystem
+Description:
+This subsystem adds ability to communicate GPU drivers and create windows
+
+Adds:
+	-- rendering
+	CreateDevice()
+	DestroyDevice()
+
+	BeginRendering()
+	Render()
+
+
+	-- buffers
+	CreateBuffer()
+	DeleteBuffer()
+	GetBufferSize()
+	GetBufferDeviceAddress()
+
+	-- images
+	CreateImage()
+	DeleteImage()
+
+	GenerateSampler()
+	DestroySampler()
+	UpdateImage()
+	BarrierImage()
+	ClearImage()
+
+
+	-- pipelines
+	UsePipeline()
+	SetConstants()
+	SetDescriptor()
+	DestroyPipeline()
+
+	CreateRasterizationPipeline()
+	Record()
+	StopRecord()
+	SetIndexBuffer()
+	SetVertexBuffer()
+	Draw()
+	DrawIndexed()
+
+	CreateComputePipeline()
+	Dispatch()
+
+	CreateRayTracingPipeline()
+	TraceRays()
+
+	-- windows
+	nhwCreateWindow()
+	nhwGetWindowInfo()
+	nhwSetWindowInfo()
+	nhwDestroyWindow()
+
+	GetWindowImage()
+
+	ShouldClose()
+*/
+
+
+
+
+
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// Device
 
 // Creates device
 // It allows to use graphics (gpu) api functions

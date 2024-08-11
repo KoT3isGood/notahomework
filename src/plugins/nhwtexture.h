@@ -1,6 +1,14 @@
 #pragma once
-#include "nhwdraw.h"
+#include "../draw/nhwdraw.h"
 
+/*
+Textures Plugin
+Description:
+This plugin allows to load texture data right into the image
+
+Adds:
+	LoadTexture()
+*/
 #ifdef __cplusplus
 extern "C" {
 #endif

@@ -73,7 +73,6 @@
     </ClCompile>
     <ClCompile Include="src\draw\nhwtexture.cpp" />
     <ClCompile Include="src\networking\nhwnetworking.cpp" />
-    <ClCompile Include="src\networking\nhwnetworking.cpp" />
     <ClCompile Include="src\nhw.cpp" />
   </ItemGroup>
   <ItemGroup>

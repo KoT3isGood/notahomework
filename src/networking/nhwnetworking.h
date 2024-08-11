@@ -1,10 +1,22 @@
 #pragma once
 #include <stdint.h>
 
+/*
+Networking subsystem
+Description:
+This subsystem allows to create TCP connections
+
+Adds:
+	CreateServer()
+	ConnectClients()
+	SendMessage()
+	SetMessageCallbackFunction()
+*/
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+	// Creates server at some port
 	void CreateServer(uint16_t port);
 
 	// Returns pointer to accepted client, only 1 per iteration
@@ -16,6 +28,7 @@ extern "C" {
 	typedef void(*RecieveMessageCallback)(const char*, uint32_t size, void* client);
 	void SetMessageCallbackFunction(RecieveMessageCallback callback);
 
+	// INTERNAL FUNCTION
 	// Server calls will call message set in SetMessageCallbackFunction
 	void MessageCallback(const char* message, uint32_t size, void* client);
 

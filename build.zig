@@ -21,11 +21,14 @@ pub fn build(b: *std.Build) void {
         .files = &.{
             "src/nhw.cpp",
             "src/draw/nhwdraw.cpp",
-            "src/draw/nhwtexture.cpp",
             "src/device/nhwdevice.cpp",
             "src/audio/nhwaudio.cpp",
             "src/networking/nhwnetworking.cpp",
             "thirdparty/stb_vorbis.c",
+
+            
+            "src/plugins/nhwtexture.cpp",
+            "src/plugins/nhwnetthread.cpp",
         },
     });
     b.installArtifact(nhw);
