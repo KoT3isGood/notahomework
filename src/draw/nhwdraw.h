@@ -91,7 +91,8 @@ typedef enum BufferType {
 	Storage,
 	Vertex,
 	Index,
-	AccelerationStructure
+	AccelerationStructure,
+	ShaderBindingTable
 } BufferType;
 
 // Creates a buffer at specific allocation with specified size
@@ -139,7 +140,7 @@ typedef enum DescriptorType {
 	StorageBuffer = 2,
 	Image = 3,
 	SampledImage = 4,
-	AccelerationStrucutre = 5,
+	AccelerationStrucutreHandle = 5,
 } DescriptorType;
 
 typedef struct {
@@ -182,8 +183,11 @@ void Dispatch(uint32_t x, uint32_t y, uint32_t z);
 typedef struct RayTracingPipelineInfo {
 	PipelineInfo pipelineInfo;
 	unsigned char* raygenSpirv;
+	uint32_t raygenSpirvSize;
 	unsigned char* rchitSpirv;
+	uint32_t rchitSpirvSize;
 	unsigned char* rmissSpirv;
+	uint32_t rmissSpirvSize;
 } RayTracingPipelineInfo;
 
 // Creates ray tracing pipeline

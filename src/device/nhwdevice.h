@@ -12,11 +12,11 @@ This subsystem allows to use keyboard, mouse and other types of input
 extern "C" {
 #endif
 
-bool IsKeyPressed(void* window, uint32_t key);
-bool IsButtonPressed(void* window, uint32_t key);
-void GetCursorPos(void* window, float* x, float* y);
-void SetCursorPos(void* window, float x, float y);
-void UseRaw(void* window, bool use);
+bool nhwIsKeyPressed(void* window, uint32_t key);
+bool nhwIsButtonPressed(void* window, uint32_t key);
+void nhwGetCursorPos(void* window, float* x, float* y);
+void nhwSetCursorPos(void* window, float x, float y);
+void nhwUseRaw(void* window, bool use);
 
 #ifdef __cplusplus
 }

@@ -68,6 +68,23 @@ bool isRecording = false;
 VkCommandBuffer stagingCommandBuffer;
 VkCommandPool stagingCommandPool;
 
+
+VkStridedDeviceAddressRegionKHR rgenRegion = {};
+VkStridedDeviceAddressRegionKHR rmissRegion = {};
+VkStridedDeviceAddressRegionKHR rchitRegion = {};
+
+void* sbtBuffer;
+
+struct TLASHandle {
+	VkAccelerationStructureKHR accelerationStructure;
+	void* acBuffer;
+	void* scratchBuffer;
+	void* instancesBuffer;
+	VkAccelerationStructureGeometryKHR asGeom{};
+	VkAccelerationStructureBuildRangeInfoKHR offset;
+	VkAccelerationStructureBuildGeometryInfoKHR geometryInfo{};
+};
+
 void StartCommandBuffer() {
 	
 
@@ -131,7 +148,10 @@ struct ShaderHandle {
 	VkFramebuffer framebuffer = nullptr;
 	bool useDepth = false;
 };
-
+uint32_t align(uint32_t value, uint32_t alignment)
+{
+	return (value + alignment - 1) & ~(alignment - 1);
+}
 
 void CreateDevice()
 {
@@ -242,9 +262,14 @@ void CreateDevice()
 	VK_KHR_RAY_QUERY_EXTENSION_NAME,
 	VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME
 	};
+	VkPhysicalDeviceRayTracingPipelineFeaturesKHR pdrtpf{};
+	pdrtpf.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
+	pdrtpf.rayTracingPipeline = VK_TRUE;
+
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR pdasf{};
 	pdasf.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
 	pdasf.accelerationStructure = VK_TRUE;
+	pdasf.pNext = &pdrtpf;
 
 	VkPhysicalDeviceFragmentShaderBarycentricFeaturesKHR barycentrics = {};
 	barycentrics.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_BARYCENTRIC_FEATURES_KHR;
@@ -310,7 +335,7 @@ void CreateDevice()
 	cmdAllocateInfo.commandPool = stagingCommandPool;
 	vkAllocateCommandBuffers(device, &cmdAllocateInfo, &stagingCommandBuffer);
 	
-
+	
 }
 
 void BeginRendering()
@@ -347,6 +372,8 @@ void BeginRendering()
 	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	vkBeginCommandBuffer(cmd[imageIndex], &beginInfo);
 	isRecording = true;
+
+	
 }
 
 void Render()
@@ -465,6 +492,7 @@ void* CreateBuffer(uint32_t size, void** allocation, BufferType type)
 	case Vertex: { usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT; break; }
 	case Index: { usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT; break; }
 	case AccelerationStructure: { usage = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT; break; }
+	case ShaderBindingTable: { usage = VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT; break; }
 	}
 
 	bufferCreateInfo.usage = usage | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
@@ -763,17 +791,19 @@ void SetDescriptor(void* shader, void* value, uint32_t binding)
 	if (((ShaderHandle*)shader)->wdss[binding].pImageInfo) { 
 		delete ((ShaderHandle*)shader)->wdss[binding].pImageInfo; 
 		((ShaderHandle*)shader)->wdss[binding].pImageInfo = nullptr;};
-	//if (!((ShaderHandle*)shader)->wdss[binding].pNext) { delete ((ShaderHandle*)shader)->wdss[binding].pNext; ((ShaderHandle*)shader)->wdss[binding].pNext = nullptr;};
+	if (((ShaderHandle*)shader)->wdss[binding].pNext) { delete (VkWriteDescriptorSetAccelerationStructureKHR*)(((ShaderHandle*)shader)->wdss[binding].pNext); ((ShaderHandle*)shader)->wdss[binding].pNext = nullptr;};
 	
 	// Now we set descriptor
 	BufferHandle* bValue = (BufferHandle*)value;
 	ImageHandle* iValue = (ImageHandle*)value;
+	TLASHandle* aValue = (TLASHandle*)value;
 	VkDescriptorType dt = ((ShaderHandle*)shader)->wdss[binding].descriptorType;
 	switch (dt) {
 	case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER: { ((ShaderHandle*)shader)->wdss[binding].pBufferInfo = new VkDescriptorBufferInfo{ bValue->buffer,0,bValue->size}; break; }
 	case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER: { ((ShaderHandle*)shader)->wdss[binding].pBufferInfo = new VkDescriptorBufferInfo{ bValue->buffer,0,bValue->size }; break; }
 	case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE: { ((ShaderHandle*)shader)->wdss[binding].pImageInfo = new VkDescriptorImageInfo{ nullptr, iValue->imageView, VK_IMAGE_LAYOUT_GENERAL}; break; }
 	case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER: { ((ShaderHandle*)shader)->wdss[binding].pImageInfo = new VkDescriptorImageInfo{ iValue->sampler, iValue->imageView, VK_IMAGE_LAYOUT_GENERAL }; break; }
+	case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR: { ((ShaderHandle*)shader)->wdss[binding].pNext = new VkWriteDescriptorSetAccelerationStructureKHR{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR,nullptr, 1, &aValue->accelerationStructure }; break; }
 	default: { break; }
 	}
 }
@@ -846,7 +876,7 @@ void* CreateRasterizationPipeline(RasterizationPipelineInfo info)
 		case DescriptorType::StorageBuffer:			bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;				break;
 		case DescriptorType::Image:					bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;				break;
 		case DescriptorType::SampledImage:			bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;		break;
-		case DescriptorType::AccelerationStrucutre: bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR; break;
+		case DescriptorType::AccelerationStrucutreHandle: bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR; break;
 		}
 		bindings[i].binding = i;
 		bindings[i].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT;
@@ -1246,10 +1276,11 @@ void* CreateComputePipeline(ComputePipelineInfo info)
 		case DescriptorType::StorageBuffer:			bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;				break;
 		case DescriptorType::Image:					bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;				break;
 		case DescriptorType::SampledImage:			bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;		break;
-		case DescriptorType::AccelerationStrucutre: bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR; break;
+		case DescriptorType::AccelerationStrucutreHandle: bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR; break;
 		}
 		bindings[i].binding = i;
-		bindings->stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+		bindings[i].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+		bindings[i].pImmutableSamplers = nullptr;
 	}
 
 	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo{};
@@ -1365,25 +1396,224 @@ void Dispatch(uint32_t x, uint32_t y, uint32_t z)
 
 void* CreateRayTracingPipeline(RayTracingPipelineInfo info)
 {
-	return 0;
+	// Create shader module
+	VkShaderModule rgsm = CreateShader(info.raygenSpirv, info.raygenSpirvSize);
+	VkPipelineShaderStageCreateInfo rgss = BuildShaderStage(rgsm, VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+	VkShaderModule rmsm = CreateShader(info.rmissSpirv, info.rmissSpirvSize);
+	VkPipelineShaderStageCreateInfo rmss = BuildShaderStage(rmsm, VK_SHADER_STAGE_MISS_BIT_KHR);
+	VkShaderModule rcsm = CreateShader(info.rchitSpirv, info.rchitSpirvSize);
+	VkPipelineShaderStageCreateInfo rcss = BuildShaderStage(rcsm, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
+
+
+
+
+
+
+
+	VkPipeline pipeline;
+	VkPipelineLayout pipelineLayout;
+	VkDescriptorSetLayout descriptorSetLayout;
+
+
+	// Descriptor Layout 
+	VkDescriptorSetLayoutBinding* bindings = (VkDescriptorSetLayoutBinding*)malloc(sizeof(VkDescriptorSetLayoutBinding) * info.pipelineInfo.descriptorsCount);
+	for (uint32_t i = 0; i < info.pipelineInfo.descriptorsCount; i++) {
+		bindings[i].descriptorCount = 1;
+		switch (info.pipelineInfo.descriptorTypes[i]) {
+		case DescriptorType::UniformBuffer:			bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;				break;
+		case DescriptorType::StorageBuffer:			bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;				break;
+		case DescriptorType::Image:					bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;				break;
+		case DescriptorType::SampledImage:			bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;		break;
+		case DescriptorType::AccelerationStrucutreHandle: bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR; break;
+		}
+		bindings[i].binding = i;
+		bindings[i].stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR| VK_SHADER_STAGE_MISS_BIT_KHR| VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+		bindings[i].pImmutableSamplers = nullptr;
+	}
+
+	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo{};
+	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	descriptorSetLayoutCreateInfo.bindingCount = info.pipelineInfo.descriptorsCount;
+	descriptorSetLayoutCreateInfo.pBindings = bindings;
+
+	vkCreateDescriptorSetLayout(device, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayout);
+
+	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{};
+	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	pipelineLayoutCreateInfo.pSetLayouts = &descriptorSetLayout;
+	pipelineLayoutCreateInfo.setLayoutCount = 1;
+
+	VkPushConstantRange pushConstantRange{};
+	pushConstantRange.size = info.pipelineInfo.constantsSize;
+	pushConstantRange.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+	if (info.pipelineInfo.constantsSize) {
+		pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
+		pipelineLayoutCreateInfo.pPushConstantRanges = &pushConstantRange;
+	}
+
+	vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout);
+
+	VkRayTracingShaderGroupCreateInfoKHR groups[3];
+	VkRayTracingShaderGroupCreateInfoKHR group{};
+	group.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
+
+	group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+	group.anyHitShader = VK_SHADER_UNUSED_KHR;
+	group.closestHitShader = VK_SHADER_UNUSED_KHR;
+	group.generalShader = 0;
+	group.intersectionShader = VK_SHADER_UNUSED_KHR;
+	groups[0] = group;
+
+	group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+	group.anyHitShader = VK_SHADER_UNUSED_KHR;
+	group.closestHitShader = VK_SHADER_UNUSED_KHR;
+	group.generalShader = 1;
+	group.intersectionShader = VK_SHADER_UNUSED_KHR;
+	groups[1] = group;
+
+	group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+	group.anyHitShader = VK_SHADER_UNUSED_KHR;
+	group.closestHitShader = 2;
+	group.generalShader = VK_SHADER_UNUSED_KHR;
+	group.intersectionShader = VK_SHADER_UNUSED_KHR;
+	groups[2] = group;
+
+	VkRayTracingPipelineCreateInfoKHR createInfo{};
+	createInfo.sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR;
+	createInfo.groupCount = 3;
+	createInfo.pGroups = groups;
+	createInfo.stageCount = 3;
+	VkPipelineShaderStageCreateInfo stages[] = { rgss,rmss,rcss };
+	createInfo.pStages = stages;
+	createInfo.layout = pipelineLayout;
+	VKD_FUNCTION(vkCreateRayTracingPipelinesKHR);
+	vkCreateRayTracingPipelinesKHR(device, nullptr, nullptr, 1, &createInfo, nullptr, &pipeline);
+
+	VkPhysicalDeviceProperties physicalDeviceProperties;
+	vkGetPhysicalDeviceProperties(physicalDevice,
+		&physicalDeviceProperties);
+	VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtProperties = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR };
+
+	VkPhysicalDeviceProperties2 physicalDeviceProperties2{
+		VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+		&rtProperties,
+		physicalDeviceProperties
+	};
+
+	vkGetPhysicalDeviceProperties2(physicalDevice,
+		&physicalDeviceProperties2);
+
+	const uint32_t handleSize = rtProperties.shaderGroupHandleSize;
+	const uint32_t handleSizeAligned = align(rtProperties.shaderGroupHandleSize, rtProperties.shaderGroupHandleAlignment);
+	rgenRegion.size = handleSizeAligned;
+	rgenRegion.stride = handleSizeAligned;
+	rmissRegion.size = handleSizeAligned;
+	rmissRegion.stride = handleSizeAligned;
+	rchitRegion.size = handleSizeAligned;
+	rchitRegion.stride = handleSizeAligned;
+
+	void* sbtAlloc;
+	sbtBuffer = CreateBuffer(rgenRegion.size + rmissRegion.size + rchitRegion.size, &sbtAlloc, ShaderBindingTable);
+
+	VKD_FUNCTION(vkGetRayTracingShaderGroupHandlesKHR);
+	vkGetRayTracingShaderGroupHandlesKHR(device, pipeline, 0, 3, 3* handleSizeAligned, sbtAlloc);
+
+
+	rgenRegion.deviceAddress = GetBufferDeviceAddress(sbtBuffer);
+	rmissRegion.deviceAddress = GetBufferDeviceAddress(sbtBuffer) + 32;
+	rchitRegion.deviceAddress = GetBufferDeviceAddress(sbtBuffer) + 64;
+
+	// Destroying shader module just to make it work
+	DestroyShader(rgsm);
+	DestroyShader(rmsm);
+	DestroyShader(rcsm);
+
+	// Descriptor set
+
+
+
+	VkDescriptorPoolSize poolSize = {};
+	poolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	poolSize.descriptorCount = DESCRIPTOR_COUNT;
+
+	VkDescriptorPoolSize poolSize2 = {};
+	poolSize2.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	poolSize2.descriptorCount = DESCRIPTOR_COUNT;
+
+	VkDescriptorPoolSize poolSize3 = {};
+	poolSize3.type = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+	poolSize3.descriptorCount = DESCRIPTOR_COUNT;
+
+	VkDescriptorPoolSize poolSize4 = {};
+	poolSize4.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	poolSize4.descriptorCount = DESCRIPTOR_COUNT;
+
+	VkDescriptorPoolSize poolSize5 = {};
+	poolSize5.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	poolSize5.descriptorCount = DESCRIPTOR_COUNT;
+
+	VkDescriptorPoolSize poolSizes[] = { poolSize,poolSize2,poolSize3,poolSize4,poolSize5 };
+
+	VkDescriptorPoolCreateInfo poolCreateInfo = {};
+	poolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	poolCreateInfo.poolSizeCount = 5;
+	poolCreateInfo.pPoolSizes = poolSizes;
+	poolCreateInfo.maxSets = 1;
+
+	VkDescriptorPool descPool;
+	VkDescriptorSet descSet;
+	vkCreateDescriptorPool(device, &poolCreateInfo, nullptr, &descPool);
+
+	VkDescriptorSetAllocateInfo allocateInfo = {};
+	allocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	allocateInfo.descriptorPool = descPool;
+	allocateInfo.descriptorSetCount = 1;
+	allocateInfo.pSetLayouts = &descriptorSetLayout;
+
+
+	vkAllocateDescriptorSets(device, &allocateInfo, &descSet);
+
+	// Setting up all descriptor sets
+
+	VkWriteDescriptorSet* wdss = (VkWriteDescriptorSet*)malloc(sizeof(VkWriteDescriptorSet) * info.pipelineInfo.descriptorsCount);
+	for (uint32_t i = 0; i < info.pipelineInfo.descriptorsCount; i++) {
+		wdss[i] = VkWriteDescriptorSet{
+			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.dstSet = descSet,
+			.dstBinding = i,
+			.descriptorCount = 1,
+			.descriptorType = bindings[i].descriptorType,
+		};
+	};
+
+	// Generating shader handle
+
+	ShaderHandle* pipelineData = new ShaderHandle;
+	pipelineData->pipeline = pipeline;
+	pipelineData->pipelineLayout = pipelineLayout;
+	pipelineData->descriptorSetLayout = descriptorSetLayout;
+	pipelineData->descriptorSet = descSet;
+	pipelineData->wdssCount = info.pipelineInfo.descriptorsCount;
+	pipelineData->wdss = wdss;
+	pipelineData->bindPoint = VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR;
+	pipelineData->shaderStageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+	pipelineData->pushConstantsSize = info.pipelineInfo.constantsSize;
+
+	return pipelineData;
 }
 
 void TraceRays(uint32_t x, uint32_t y)
 {
+	VKD_FUNCTION(vkCmdTraceRaysKHR);
+	VkStridedDeviceAddressRegionKHR sbt_null{};
+	vkCmdTraceRaysKHR(cmd[imageIndex], &rgenRegion, &rmissRegion, &rchitRegion, &sbt_null, x, y, 1);
 }
 
 struct BLASHandle {
 	VkAccelerationStructureKHR accelerationStructure;
 	void* acBuffer;
 };
-struct TLASHandle {
-	VkAccelerationStructureKHR accelerationStructure;
-	void* acBuffer;
-	void* instancesBuffer;
-	VkAccelerationStructureGeometryKHR asGeom{};
-	VkAccelerationStructureBuildRangeInfoKHR offset;
-	VkAccelerationStructureBuildGeometryInfoKHR geometryInfo{};
-};
+
 
 void* CreateBLAS(void* vertexBuffer, void* indexBuffer)
 {
@@ -1488,7 +1718,7 @@ void* CreateTLAS(MeshInstance* meshes, uint32_t meshesCount)
 	instance.mask = 0xFF;
 	instance.instanceShaderBindingTableRecordOffset = 0;
 	for (uint32_t i = 0; i < meshesCount; i++) {
-		memcpy(meshes[i].transformMatrix, &instance.transform, sizeof(VkTransformMatrixKHR));
+		memcpy(&instance.transform, meshes[i].transformMatrix, sizeof(VkTransformMatrixKHR));
 		instance.instanceCustomIndex = meshes[i].instanceID;
 		instance.accelerationStructureReference = GetBLASAdress(meshes[i].blas);
 		memcpy((void*)((uint64_t)instancesBufferAlloc + i * sizeof(VkAccelerationStructureInstanceKHR)), &instance, sizeof(VkAccelerationStructureInstanceKHR));
@@ -1553,7 +1783,7 @@ void* CreateTLAS(MeshInstance* meshes, uint32_t meshesCount)
 	vkCreateAccelerationStructureKHR(device, &createInfo, nullptr, &accelerationStructure);
 
 	geometryInfo.dstAccelerationStructure = accelerationStructure;
-	return new TLASHandle{ accelerationStructure,asBuffer,instancesBuffer,asGeom,offset,geometryInfo };
+	return new TLASHandle{ accelerationStructure,asBuffer,scratchBuffer,instancesBuffer,asGeom,offset,geometryInfo };
 }
 
 void BuildTLAS(void* tlas)
@@ -1578,6 +1808,12 @@ void BuildTLAS(void* tlas)
 
 void DestroyTLAS(void* tlas)
 {
+	DeleteBuffer(((TLASHandle*)tlas)->acBuffer);
+	DeleteBuffer(((TLASHandle*)tlas)->scratchBuffer);
+	DeleteBuffer(((TLASHandle*)tlas)->instancesBuffer);
+	VKD_FUNCTION(vkDestroyAccelerationStructureKHR);
+	vkDestroyAccelerationStructureKHR(device, ((TLASHandle*)tlas)->accelerationStructure, nullptr);
+	delete (TLASHandle*)tlas;
 }
 
 void CreateSwapchain(void* window) {
