@@ -194,6 +194,13 @@ void* CreateRayTracingPipeline(RayTracingPipelineInfo info);
 
 void TraceRays(uint32_t x, uint32_t y);
 
+// Acceleration structures
+void* CreateBLAS(void* vertexBuffer, void* indexBuffer);
+void UpdateBLAS(void* blas);
+void DestroyBLAS(void* blas);
+void* CreateTLAS(void** blases, void** meshes, uint32_t* size);
+void UpdateTLAS(void* tlas);
+void DestroyTLAS(void* tlas);
 
 
 

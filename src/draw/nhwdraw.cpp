@@ -5,11 +5,16 @@
 #include "Windows.h"
 #include "vulkan/vulkan_win32.h"
 #endif
+#ifdef __linux__
+#include <xcb/xcb.h>
+#include "vulkan/vulkan_xcb.h"
+#endif
 #include "unordered_map"
 #include "vector"
 
 #define VK_FUNCTION_GEN(function) PFN_##function function;
 #define VKI_FUNCTION(function) PFN_##function function = (PFN_##function)vkGetInstanceProcAddr(instance,#function)
+#define VKD_FUNCTION(function) PFN_##function function = (PFN_##function)vkGetDeviceProcAddr(device,#function)
 
 VkInstance instance;
 VkDebugUtilsMessengerEXT messenger;
@@ -126,6 +131,9 @@ void CreateDevice()
 		#ifdef _WIN32
 			VK_KHR_WIN32_SURFACE_EXTENSION_NAME
 		#endif
+    #ifdef __linux__
+      VK_KHR_XCB_SURFACE_EXTENSION_NAME
+    #endif
 	};
 	instanceCreateInfo.enabledExtensionCount = sizeof(instanceExtensions) / 8;
 	instanceCreateInfo.ppEnabledExtensionNames = instanceExtensions;
@@ -444,6 +452,7 @@ void* CreateBuffer(uint32_t size, void** allocation, BufferType type)
 	vkMapMemory(device, memory, 0, size, 0, allocation);
 	vkBindBufferMemory(device, buffer, memory, 0);
 
+
 	return new BufferHandle{ buffer,size,memory };
 }
 
@@ -454,7 +463,10 @@ uint32_t GetBufferSize(void* buffer)
 
 uint64_t GetBufferDeviceAddress(void* buffer)
 {
-	return 0;
+	VkBufferDeviceAddressInfo dvaci{};
+	dvaci.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+	dvaci.buffer = ((BufferHandle*)buffer)->buffer;
+	return vkGetBufferDeviceAddress(device, &dvaci);
 }
 
 void DeleteBuffer(void* buffer)
@@ -1350,9 +1362,76 @@ void TraceRays(uint32_t x, uint32_t y)
 {
 }
 
+void* CreateBLAS(void* vertexBuffer, void* indexBuffer)
+{
+	VkAccelerationStructureGeometryTrianglesDataKHR triangles{};
+	VkAccelerationStructureGeometryKHR asGeom{};
+	VkAccelerationStructureBuildRangeInfoKHR offset;
+	VkAccelerationStructureBuildGeometryInfoKHR geometryInfo{};
+
+	triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
+	triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
+	triangles.vertexData.deviceAddress = GetBufferDeviceAddress(vertexBuffer);
+	triangles.vertexStride = 12;
+	triangles.maxVertex = ((BufferHandle*)vertexBuffer)->size/12-1;
+	triangles.indexType = VK_INDEX_TYPE_UINT32;
+	triangles.indexData.deviceAddress = GetBufferDeviceAddress(indexBuffer);
+
+	asGeom.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+	asGeom.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+	asGeom.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
+	asGeom.geometry.triangles = triangles;
+
+
+	offset.firstVertex = 0;
+	offset.primitiveCount = ((BufferHandle*)indexBuffer)->size / 12;
+	offset.primitiveOffset = 0;
+	offset.transformOffset = 0;
+
+	geometryInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+	geometryInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+	geometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_DATA_ACCESS_KHR | VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+	geometryInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+
+	geometryInfo.pGeometries = &asGeom;
+	geometryInfo.geometryCount = 1;
+
+	VKD_FUNCTION(vkCreateAccelerationStructureKHR);
+	VKD_FUNCTION(vkGetAccelerationStructureBuildSizesKHR);
+
+	uint32_t count = offset.primitiveCount;
+
+	VkAccelerationStructureCreateInfoKHR createInfo{};
+	VkAccelerationStructureKHR* accelerationStructure = new VkAccelerationStructureKHR();
+	vkCreateAccelerationStructureKHR(device, &createInfo,nullptr,accelerationStructure);
+	return nullptr;
+}
+
+void UpdateBLAS(void* blas)
+{
+}
+
+void DestroyBLAS(void* blas)
+{
+}
+
+void* CreateTLAS(void** blases, void** meshes, uint32_t* size)
+{
+	return nullptr;
+}
+
+void UpdateTLAS(void* tlas)
+{
+}
+
+void DestroyTLAS(void* tlas)
+{
+}
+
 void CreateSwapchain(void* window) {
 	VkSurfaceKHR surface = nullptr;
 	VkResult result = glfwCreateWindowSurface(instance, (GLFWwindow*)window, nullptr, &surface);
+  Log("%i",result);
 
 	RenderWindowInfo rwi{};
 	rwi.surface = surface;

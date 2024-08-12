@@ -74,6 +74,8 @@
     <ClCompile Include="src\draw\nhwtexture.cpp" />
     <ClCompile Include="src\networking\nhwnetworking.cpp" />
     <ClCompile Include="src\nhw.cpp" />
+    <ClCompile Include="src\plugins\nhwnetthread.cpp" />
+    <ClCompile Include="src\plugins\nhwtexture.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\audio\nhwaudio.h" />
@@ -82,6 +84,8 @@
     <ClInclude Include="src\draw\nhwtexture.h" />
     <ClInclude Include="src\networking\nhwnetworking.h" />
     <ClInclude Include="src\nhw.h" />
+    <ClInclude Include="src\plugins\nhwnetthread.h" />
+    <ClInclude Include="src\plugins\nhwtexture.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="src\networking\nhwnetworking.zig" />
