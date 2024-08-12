@@ -215,7 +215,7 @@ int main() {
 Build and installation
 ----------------------
 
-Make sure you have installed `zig 0.12.0-dev.3180+83e578a18`. 
+Make sure you have installed `zig 0.13.0`. 
 
 Then you can use `zig build` to compile the library. After that you can link it to any application.
 
