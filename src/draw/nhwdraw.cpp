@@ -65,11 +65,31 @@ VkSwapchainKHR* swapchains = 0;
 uint32_t* imageIndexes = 0;
 
 bool isRecording = false;
+VkCommandBuffer stagingCommandBuffer;
+VkCommandPool stagingCommandPool;
 
+void StartCommandBuffer() {
+	
 
+	VkCommandBufferBeginInfo beginInfo{};
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	vkResetCommandBuffer(stagingCommandBuffer, 0);
+	vkBeginCommandBuffer(stagingCommandBuffer, &beginInfo);
 
+}
 
+void FlushCommandBuffer() {
+	vkEndCommandBuffer(stagingCommandBuffer);
 
+	VkSubmitInfo submitInfo{};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &stagingCommandBuffer;
+
+	vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
+	vkQueueWaitIdle(graphicsQueue);
+}
 
 void CreateSwapchain(void* window);
 void DestroySwapchain(void* window);
@@ -216,24 +236,30 @@ void CreateDevice()
 
 	const char* deviceExtensions[] = {
 	VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-	VK_KHR_FRAGMENT_SHADER_BARYCENTRIC_EXTENSION_NAME
+	VK_KHR_FRAGMENT_SHADER_BARYCENTRIC_EXTENSION_NAME,
+	VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
+	VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
+	VK_KHR_RAY_QUERY_EXTENSION_NAME,
+	VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME
 	};
+	VkPhysicalDeviceAccelerationStructureFeaturesKHR pdasf{};
+	pdasf.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
+	pdasf.accelerationStructure = VK_TRUE;
+
 	VkPhysicalDeviceFragmentShaderBarycentricFeaturesKHR barycentrics = {};
 	barycentrics.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_BARYCENTRIC_FEATURES_KHR;
 	barycentrics.fragmentShaderBarycentric = VK_TRUE;
+	barycentrics.pNext = &pdasf;
 
 	VkPhysicalDeviceBufferDeviceAddressFeatures pdbdaf{};
 	pdbdaf.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
 	pdbdaf.bufferDeviceAddress = VK_TRUE;
 	pdbdaf.pNext = &barycentrics;
 	
-
-	VkDeviceCreateInfo deviceCreateInfo{};
-
-
 	VkPhysicalDeviceFeatures features{};
 	features.geometryShader = true;
 
+	VkDeviceCreateInfo deviceCreateInfo{};
 	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 	deviceCreateInfo.enabledExtensionCount = sizeof(deviceExtensions) / 8;
 	deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions;
@@ -272,7 +298,17 @@ void CreateDevice()
 		vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &presentSemaphore[i]);
 	}
 
-	Log("Created device");
+	cmdPoolCreateInfo = {};
+	cmdPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	cmdPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+	cmdPoolCreateInfo.queueFamilyIndex = family;
+	vkCreateCommandPool(device, &cmdPoolCreateInfo, nullptr, &stagingCommandPool);
+
+	cmdAllocateInfo = {};
+	cmdAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	cmdAllocateInfo.commandBufferCount = 1;
+	cmdAllocateInfo.commandPool = stagingCommandPool;
+	vkAllocateCommandBuffers(device, &cmdAllocateInfo, &stagingCommandBuffer);
 	
 
 }
@@ -428,7 +464,7 @@ void* CreateBuffer(uint32_t size, void** allocation, BufferType type)
 	case Uniform: { usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT; break; }
 	case Vertex: { usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |  VK_BUFFER_USAGE_STORAGE_BUFFER_BIT; break; }
 	case Index: { usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT; break; }
-
+	case AccelerationStructure: { usage = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT; break; }
 	}
 
 	bufferCreateInfo.usage = usage | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
@@ -574,25 +610,7 @@ void* CreateImage(uint32_t x, uint32_t y, unsigned char imageFormat)
 
 void UpdateImage(void* image, void* buffer)
 {
-	VkCommandBuffer commandBuffer;
-	VkCommandPool commandPool;
-
-	VkCommandPoolCreateInfo cmdPoolCreateInfo{};
-	cmdPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	cmdPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-	cmdPoolCreateInfo.queueFamilyIndex = family;
-	vkCreateCommandPool(device, &cmdPoolCreateInfo, nullptr, &commandPool);
-
-	VkCommandBufferAllocateInfo cmdAllocateInfo{};
-	cmdAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	cmdAllocateInfo.commandBufferCount = 1;
-	cmdAllocateInfo.commandPool = commandPool;
-	vkAllocateCommandBuffers(device, &cmdAllocateInfo, &commandBuffer);
-
-	VkCommandBufferBeginInfo beginInfo{};
-	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-	vkBeginCommandBuffer(commandBuffer, &beginInfo);
+	StartCommandBuffer();
 
 
 	VkBufferImageCopy region{};
@@ -613,7 +631,7 @@ void UpdateImage(void* image, void* buffer)
 	};
 
 	vkCmdCopyBufferToImage(
-		commandBuffer,
+		stagingCommandBuffer,
 		((BufferHandle*)buffer)->buffer,
 		((ImageHandle*)image)->image,
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -621,15 +639,7 @@ void UpdateImage(void* image, void* buffer)
 		&region
 	);
 
-	vkEndCommandBuffer(commandBuffer);
-
-	VkSubmitInfo submitInfo{};
-	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &commandBuffer;
-
-	vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
-	vkQueueWaitIdle(graphicsQueue);
+	FlushCommandBuffer();
 }
 void DeleteImage(void* image)
 {
@@ -1362,6 +1372,19 @@ void TraceRays(uint32_t x, uint32_t y)
 {
 }
 
+struct BLASHandle {
+	VkAccelerationStructureKHR accelerationStructure;
+	void* acBuffer;
+};
+struct TLASHandle {
+	VkAccelerationStructureKHR accelerationStructure;
+	void* acBuffer;
+	void* instancesBuffer;
+	VkAccelerationStructureGeometryKHR asGeom{};
+	VkAccelerationStructureBuildRangeInfoKHR offset;
+	VkAccelerationStructureBuildGeometryInfoKHR geometryInfo{};
+};
+
 void* CreateBLAS(void* vertexBuffer, void* indexBuffer)
 {
 	VkAccelerationStructureGeometryTrianglesDataKHR triangles{};
@@ -1390,7 +1413,7 @@ void* CreateBLAS(void* vertexBuffer, void* indexBuffer)
 
 	geometryInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
 	geometryInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-	geometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_DATA_ACCESS_KHR | VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+	geometryInfo.flags =  VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
 	geometryInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
 
 	geometryInfo.pGeometries = &asGeom;
@@ -1398,13 +1421,41 @@ void* CreateBLAS(void* vertexBuffer, void* indexBuffer)
 
 	VKD_FUNCTION(vkCreateAccelerationStructureKHR);
 	VKD_FUNCTION(vkGetAccelerationStructureBuildSizesKHR);
+	VKD_FUNCTION(vkCmdBuildAccelerationStructuresKHR);
 
 	uint32_t count = offset.primitiveCount;
 
+	VkAccelerationStructureBuildSizesInfoKHR sizeInfo{};
+	sizeInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
+	vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &geometryInfo, &count, &sizeInfo);
+
+	
+
+	void* asBufferAlloc;
+	void* asBuffer = CreateBuffer(sizeInfo.accelerationStructureSize, &asBufferAlloc, BufferType::AccelerationStructure);
+
+
+	void* scratchBufferAlloc;
+	void* scratchBuffer = CreateBuffer(sizeInfo.buildScratchSize, &scratchBufferAlloc, BufferType::Storage);
+	geometryInfo.scratchData.deviceAddress = GetBufferDeviceAddress(scratchBuffer);
+
 	VkAccelerationStructureCreateInfoKHR createInfo{};
-	VkAccelerationStructureKHR* accelerationStructure = new VkAccelerationStructureKHR();
-	vkCreateAccelerationStructureKHR(device, &createInfo,nullptr,accelerationStructure);
-	return nullptr;
+	createInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
+	createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+	createInfo.buffer = ((BufferHandle*)asBuffer)->buffer;
+	createInfo.size = sizeInfo.accelerationStructureSize;
+
+	VkAccelerationStructureKHR accelerationStructure;
+	vkCreateAccelerationStructureKHR(device, &createInfo,nullptr,&accelerationStructure);
+	geometryInfo.dstAccelerationStructure = accelerationStructure;
+
+	StartCommandBuffer();
+	const VkAccelerationStructureBuildRangeInfoKHR* pBuildOffsetInfo = &offset;
+	vkCmdBuildAccelerationStructuresKHR(stagingCommandBuffer, 1, &geometryInfo, &pBuildOffsetInfo);
+	FlushCommandBuffer();
+	DeleteBuffer(scratchBuffer);
+
+	return new BLASHandle{accelerationStructure,asBuffer};
 }
 
 void UpdateBLAS(void* blas)
@@ -1413,15 +1464,116 @@ void UpdateBLAS(void* blas)
 
 void DestroyBLAS(void* blas)
 {
+	VKD_FUNCTION(vkDestroyAccelerationStructureKHR);
+	BLASHandle* blasp = (BLASHandle*)blas;
+	DeleteBuffer(blasp->acBuffer);
+	vkDestroyAccelerationStructureKHR(device,blasp->accelerationStructure,nullptr);
 }
 
-void* CreateTLAS(void** blases, void** meshes, uint32_t* size)
+uint64_t GetBLASAdress(void* blas) {
+	VKD_FUNCTION(vkGetAccelerationStructureDeviceAddressKHR);
+	VkAccelerationStructureDeviceAddressInfoKHR asdai{};
+	asdai.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
+	asdai.accelerationStructure = ((BLASHandle*)blas)->accelerationStructure;
+	return vkGetAccelerationStructureDeviceAddressKHR(device, &asdai);
+};
+
+void* CreateTLAS(MeshInstance* meshes, uint32_t meshesCount)
 {
-	return nullptr;
+	void* instancesBufferAlloc;
+	void* instancesBuffer = CreateBuffer(meshesCount*sizeof(VkAccelerationStructureInstanceKHR),&instancesBufferAlloc,Storage);
+
+	VkAccelerationStructureInstanceKHR instance{};
+	instance.flags = 0;
+	instance.mask = 0xFF;
+	instance.instanceShaderBindingTableRecordOffset = 0;
+	for (uint32_t i = 0; i < meshesCount; i++) {
+		memcpy(meshes[i].transformMatrix, &instance.transform, sizeof(VkTransformMatrixKHR));
+		instance.instanceCustomIndex = meshes[i].instanceID;
+		instance.accelerationStructureReference = GetBLASAdress(meshes[i].blas);
+		memcpy((void*)((uint64_t)instancesBufferAlloc + i * sizeof(VkAccelerationStructureInstanceKHR)), &instance, sizeof(VkAccelerationStructureInstanceKHR));
+	}
+
+	VkAccelerationStructureGeometryInstancesDataKHR instances{};
+	VkAccelerationStructureGeometryKHR asGeom{};
+	VkAccelerationStructureBuildRangeInfoKHR offset;
+	VkAccelerationStructureBuildGeometryInfoKHR geometryInfo{};
+
+	instances.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
+	instances.data.deviceAddress = GetBufferDeviceAddress(instancesBuffer);
+
+	asGeom.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+	asGeom.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
+	asGeom.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
+	asGeom.geometry.instances = instances;
+
+	offset.firstVertex = 0;
+	offset.primitiveCount = meshesCount;
+	offset.primitiveOffset = 0;
+	offset.transformOffset = 0;
+
+	geometryInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+	geometryInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+	geometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR;
+	geometryInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+
+	geometryInfo.pGeometries = &asGeom;
+	geometryInfo.geometryCount = 1;
+
+	geometryInfo.dstAccelerationStructure = VK_NULL_HANDLE;
+
+
+
+	VKD_FUNCTION(vkCreateAccelerationStructureKHR);
+	VKD_FUNCTION(vkGetAccelerationStructureBuildSizesKHR);
+
+	uint32_t count = offset.primitiveCount;
+
+	VkAccelerationStructureBuildSizesInfoKHR sizeInfo{};
+	sizeInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
+
+	vkGetAccelerationStructureBuildSizesKHR(device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &geometryInfo, &count, &sizeInfo);
+
+
+	void* asBufferAlloc;
+	void* asBuffer = CreateBuffer(sizeInfo.accelerationStructureSize, &asBufferAlloc, BufferType::AccelerationStructure);
+
+
+	void* scratchBufferAlloc;
+	void* scratchBuffer = CreateBuffer(sizeInfo.buildScratchSize, &scratchBufferAlloc, BufferType::Storage);
+	geometryInfo.scratchData.deviceAddress = GetBufferDeviceAddress(scratchBuffer);
+
+	VkAccelerationStructureCreateInfoKHR createInfo{};
+	createInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
+	createInfo.buffer = ((BufferHandle*)asBuffer)->buffer;
+	createInfo.size = sizeInfo.accelerationStructureSize;
+	createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+
+	VkAccelerationStructureKHR accelerationStructure;
+	vkCreateAccelerationStructureKHR(device, &createInfo, nullptr, &accelerationStructure);
+
+	geometryInfo.dstAccelerationStructure = accelerationStructure;
+	return new TLASHandle{ accelerationStructure,asBuffer,instancesBuffer,asGeom,offset,geometryInfo };
 }
 
-void UpdateTLAS(void* tlas)
+void BuildTLAS(void* tlas)
 {
+	VKD_FUNCTION(vkCmdBuildAccelerationStructuresKHR);
+	if (isRecording) {
+		TLASHandle* tlasp = (TLASHandle*)tlas;
+		tlasp->geometryInfo.pGeometries = &tlasp->asGeom;
+		const VkAccelerationStructureBuildRangeInfoKHR* pBuildOffsetInfo = &tlasp->offset;
+		vkCmdBuildAccelerationStructuresKHR(cmd[imageIndex], 1, &tlasp->geometryInfo, &pBuildOffsetInfo);
+	}
+	else {
+		StartCommandBuffer();
+		TLASHandle* tlasp = (TLASHandle*)tlas;
+		tlasp->geometryInfo.pGeometries = &tlasp->asGeom;
+		const VkAccelerationStructureBuildRangeInfoKHR* pBuildOffsetInfo = &tlasp->offset;
+		vkCmdBuildAccelerationStructuresKHR(stagingCommandBuffer, 1, &tlasp->geometryInfo, &pBuildOffsetInfo);
+		FlushCommandBuffer();
+	}
+
 }
 
 void DestroyTLAS(void* tlas)

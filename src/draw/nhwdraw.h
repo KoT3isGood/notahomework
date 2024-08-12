@@ -86,11 +86,12 @@ void DestroyDevice();
 
 // GPU storage
 
-typedef enum {
+typedef enum BufferType {
 	Uniform,
 	Storage,
 	Vertex,
 	Index,
+	AccelerationStructure
 } BufferType;
 
 // Creates a buffer at specific allocation with specified size
@@ -133,7 +134,7 @@ void SetConstants(void* shader,void* constants);
 
 void DestroyPipeline(void* pipeline);
 
-typedef enum {
+typedef enum DescriptorType {
 	UniformBuffer = 1,
 	StorageBuffer = 2,
 	Image = 3,
@@ -149,7 +150,7 @@ typedef struct {
 
 void SetDescriptor(void* shader, void* value, uint32_t binding);
 
-typedef struct {
+typedef struct RasterizationPipelineInfo {
 	PipelineInfo pipelineInfo;
 
 	unsigned char* vertexSpirv;
@@ -169,7 +170,7 @@ void Draw();
 void DrawIndexed(uint32_t triangles,uint32_t instances);
 
 
-typedef struct {
+typedef struct ComputePipelineInfo {
 	PipelineInfo pipelineInfo;
 	unsigned char* computeSpirv;
 	uint32_t computeSpirvSize;
@@ -178,7 +179,7 @@ void* CreateComputePipeline(ComputePipelineInfo info);
 
 void Dispatch(uint32_t x, uint32_t y, uint32_t z);
 
-typedef struct {
+typedef struct RayTracingPipelineInfo {
 	PipelineInfo pipelineInfo;
 	unsigned char* raygenSpirv;
 	unsigned char* rchitSpirv;
@@ -198,15 +199,22 @@ void TraceRays(uint32_t x, uint32_t y);
 void* CreateBLAS(void* vertexBuffer, void* indexBuffer);
 void UpdateBLAS(void* blas);
 void DestroyBLAS(void* blas);
-void* CreateTLAS(void** blases, void** meshes, uint32_t* size);
-void UpdateTLAS(void* tlas);
+
+typedef struct MeshInstance {
+	float transformMatrix[3][4];
+	uint32_t instanceID;
+	void* blas;
+} MeshInstance;
+
+void* CreateTLAS(MeshInstance* meshes, uint32_t meshesCount);
+void BuildTLAS(void* tlas);
 void DestroyTLAS(void* tlas);
 
 
 
 // Window
 
-typedef struct {
+typedef struct WindowInfo{
 
 	const char* title;
 	uint32_t x;

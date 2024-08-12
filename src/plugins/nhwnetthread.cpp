@@ -24,7 +24,6 @@ void CreateNetworkThread()
 void DestroyNetworkThread()
 {
 	shouldRunNetthread = false;
-	thread.join();
 }
 
 void GetAllClients(uint32_t* amount, void** clients)
