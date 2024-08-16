@@ -127,6 +127,7 @@ struct ImageHandle {
 	uint32_t y;
 	VkFormat format;
 	VkSampler sampler = nullptr;
+  VkImageLayout layout;
 };
 
 struct ShaderHandle {
@@ -178,11 +179,11 @@ void CreateDevice()
 	instanceCreateInfo.enabledExtensionCount = sizeof(instanceExtensions) / 8;
 	instanceCreateInfo.ppEnabledExtensionNames = instanceExtensions;
 
-	//const char* instanceLayers[] = {
-	//	"VK_LAYER_KHRONOS_validation"
-	//};
-	//instanceCreateInfo.enabledLayerCount = sizeof(instanceLayers) / 8;
-	//instanceCreateInfo.ppEnabledLayerNames = instanceLayers;
+	/*const char* instanceLayers[] = {
+		"VK_LAYER_KHRONOS_validation"
+	};
+	instanceCreateInfo.enabledLayerCount = sizeof(instanceLayers) / 8;
+	instanceCreateInfo.ppEnabledLayerNames = instanceLayers;*/
 	instanceCreateInfo.pApplicationInfo = &appInfo;
 
 	vkCreateInstance(&instanceCreateInfo, 0, &instance);
@@ -204,7 +205,6 @@ void CreateDevice()
 	// enumerate physical devices
 	uint32_t physicalDeviceCount = 0;
 	vkEnumeratePhysicalDevices(instance, &physicalDeviceCount, 0);
-	Log("physicalDeviceCount = %i", physicalDeviceCount);
 	if (physicalDeviceCount == 0) {
 		Mayday("Failed to find physical device");
 	}
@@ -260,7 +260,8 @@ void CreateDevice()
 	VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
 	VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
 	VK_KHR_RAY_QUERY_EXTENSION_NAME,
-	VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME
+	VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
+	VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME
 	};
 	VkPhysicalDeviceRayTracingPipelineFeaturesKHR pdrtpf{};
 	pdrtpf.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
@@ -349,14 +350,9 @@ void BeginRendering()
 
 
 	for (auto swapchain : renderWindows) {
-		if (swapchain.second.swapchain) {
-			
-			
-
-		
+		if (swapchain.second.swapchain) {	
 			VkResult r = vkAcquireNextImageKHR(device, swapchain.second.swapchain, UINT64_MAX, presentSemaphore[imageIndex], VK_NULL_HANDLE, &imageIndexes[counter]);
 			if (r == VK_ERROR_OUT_OF_DATE_KHR || r == VK_SUBOPTIMAL_KHR) {
-				Log("Found swapchain to resize");
 				windowsToResize.push_back(swapchain.first);
 			}
 
@@ -381,7 +377,7 @@ void Render()
 
 	isRecording = false;
 
-	for (auto window: renderWindows){
+	/*for (auto window: renderWindows){
 		VkImageMemoryBarrier imageMemoryBarrier = {};
 		imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 		imageMemoryBarrier.srcAccessMask = VK_ACCESS_NONE_KHR;
@@ -399,7 +395,7 @@ void Render()
 		imageMemoryBarrier.subresourceRange.layerCount = 1;
 		vkCmdPipelineBarrier(cmd[imageIndex], VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, 0, 0, 0, 0, 0, 1, &imageMemoryBarrier);
 		DeleteImage(image);
-	}
+	}*/
 
 	vkEndCommandBuffer(cmd[imageIndex]);
 
@@ -592,9 +588,7 @@ void* CreateImage(uint32_t x, uint32_t y, unsigned char imageFormat)
 	}
 	imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	if (imageFormat == 0) {
-		imageInfo.usage = VK_IMAGE_USAGE_STORAGE_BIT;
-	}
+
 	if (imageFormat == 2) {
 		imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT;
 	}
@@ -604,8 +598,7 @@ void* CreateImage(uint32_t x, uint32_t y, unsigned char imageFormat)
 	};
 	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-
-	imageInfo.usage = imageInfo.usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+	imageInfo.usage = imageInfo.usage | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
 	//VmaAllocationCreateInfo allocInfo = {};
 	//allocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
@@ -632,6 +625,7 @@ void* CreateImage(uint32_t x, uint32_t y, unsigned char imageFormat)
 	imageHandle->memory = memory;
 	imageHandle->x = x;
 	imageHandle->y = y;
+	imageHandle->layout = VK_IMAGE_LAYOUT_UNDEFINED;
 
 	return imageHandle;
 }
@@ -742,16 +736,19 @@ void DestroySampler(void* image)
 }
 
 void BarrierImage(void* image) {
+
+	
+
 	VkImageMemoryBarrier imageMemoryBarrier = {};
 	imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 	imageMemoryBarrier.srcAccessMask = VK_ACCESS_NONE_KHR;
 	imageMemoryBarrier.dstAccessMask = VK_ACCESS_NONE_KHR;
-	imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+	imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
 	imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
 	imageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	if (((ImageHandle*)image)->format == VK_FORMAT_D32_SFLOAT) {
-		imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-		imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+		imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 		imageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
 	};
 	imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -761,9 +758,37 @@ void BarrierImage(void* image) {
 	imageMemoryBarrier.subresourceRange.levelCount = 1;
 	imageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
 	imageMemoryBarrier.subresourceRange.layerCount = 1;
+
+	((ImageHandle*)image)->layout = imageMemoryBarrier.newLayout;
 	vkCmdPipelineBarrier(cmd[imageIndex], VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, 0, 0, 0, 0, 0, 1, &imageMemoryBarrier);
 
 }
+
+void FixDepthImage(void* image) {
+
+	
+
+	VkImageMemoryBarrier imageMemoryBarrier = {};
+	imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	imageMemoryBarrier.srcAccessMask = VK_ACCESS_NONE_KHR;
+	imageMemoryBarrier.dstAccessMask = VK_ACCESS_NONE_KHR;
+	imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+	imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+	imageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+	imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	imageMemoryBarrier.image = ((ImageHandle*)image)->image;  // The VkImage being transitioned
+	imageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	imageMemoryBarrier.subresourceRange.levelCount = 1;
+	imageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	imageMemoryBarrier.subresourceRange.layerCount = 1;
+
+	((ImageHandle*)image)->layout = imageMemoryBarrier.newLayout;
+	vkCmdPipelineBarrier(cmd[imageIndex], VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, 0, 0, 0, 0, 0, 1, &imageMemoryBarrier);
+
+}
+
 
 void* GetWindowImage(void* window)
 {
@@ -802,7 +827,7 @@ void SetDescriptor(void* shader, void* value, uint32_t binding)
 	case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER: { ((ShaderHandle*)shader)->wdss[binding].pBufferInfo = new VkDescriptorBufferInfo{ bValue->buffer,0,bValue->size}; break; }
 	case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER: { ((ShaderHandle*)shader)->wdss[binding].pBufferInfo = new VkDescriptorBufferInfo{ bValue->buffer,0,bValue->size }; break; }
 	case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE: { ((ShaderHandle*)shader)->wdss[binding].pImageInfo = new VkDescriptorImageInfo{ nullptr, iValue->imageView, VK_IMAGE_LAYOUT_GENERAL}; break; }
-	case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER: { ((ShaderHandle*)shader)->wdss[binding].pImageInfo = new VkDescriptorImageInfo{ iValue->sampler, iValue->imageView, VK_IMAGE_LAYOUT_GENERAL }; break; }
+	case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER: { ((ShaderHandle*)shader)->wdss[binding].pImageInfo = new VkDescriptorImageInfo{ iValue->sampler, iValue->imageView, VK_IMAGE_LAYOUT_GENERAL}; break; }
 	case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR: { ((ShaderHandle*)shader)->wdss[binding].pNext = new VkWriteDescriptorSetAccelerationStructureKHR{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR,nullptr, 1, &aValue->accelerationStructure }; break; }
 	default: { break; }
 	}
@@ -1833,7 +1858,7 @@ void CreateSwapchain(void* window) {
 	swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 	swapchainCreateInfo.surface = surface;
 	swapchainCreateInfo.minImageCount = FRAMES_IN_FLIGHT_COUNT;
-#ifdef LINUX_PLATFORM
+#ifdef __linux__
 	swapchainCreateInfo.imageFormat = VK_FORMAT_B8G8R8A8_UNORM;
 #else 
 	swapchainCreateInfo.imageFormat = VK_FORMAT_R8G8B8A8_UNORM;
@@ -1854,7 +1879,7 @@ void CreateSwapchain(void* window) {
 	VkImage images[FRAMES_IN_FLIGHT_COUNT];
 	vkGetSwapchainImagesKHR(device, swapchain, &imageCount, images);
 	for (uint32_t i = 0; i < FRAMES_IN_FLIGHT_COUNT; i++) {
-		rwi.swapchainsImages[i] = MakeImageView(images[i], VK_FORMAT_R8G8B8A8_UNORM);
+		rwi.swapchainsImages[i] = MakeImageView(images[i], swapchainCreateInfo.imageFormat);
 		rwi.swapchainsImagesReal[i] = images[i];
 	}
 

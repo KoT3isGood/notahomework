@@ -123,6 +123,7 @@ void* GetWindowImage(void* window);
 void DeleteImage(void* image);
 
 void BarrierImage(void* image);
+void FixDepthImage(void* image);
 void ClearImage(void* image);
 void* GenerateSampler(void* image);
 void DestroySampler(void* image);
