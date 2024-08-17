@@ -170,10 +170,10 @@ void CreateDevice()
 		VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
 		VK_KHR_SURFACE_EXTENSION_NAME,
 		#ifdef _WIN32
-			VK_KHR_WIN32_SURFACE_EXTENSION_NAME
+			VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
 		#endif
     #ifdef __linux__
-      VK_KHR_XCB_SURFACE_EXTENSION_NAME
+      VK_KHR_XCB_SURFACE_EXTENSION_NAME,
     #endif
 	};
 	instanceCreateInfo.enabledExtensionCount = sizeof(instanceExtensions) / 8;
@@ -261,8 +261,9 @@ void CreateDevice()
 	VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
 	VK_KHR_RAY_QUERY_EXTENSION_NAME,
 	VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
-	VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME
+	VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME,
 	};
+
 	VkPhysicalDeviceRayTracingPipelineFeaturesKHR pdrtpf{};
 	pdrtpf.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
 	pdrtpf.rayTracingPipeline = VK_TRUE;
@@ -283,7 +284,8 @@ void CreateDevice()
 	pdbdaf.pNext = &barycentrics;
 	
 	VkPhysicalDeviceFeatures features{};
-	features.geometryShader = true;
+	features.geometryShader = VK_TRUE;
+	features.shaderInt64 = VK_TRUE;
 
 	VkDeviceCreateInfo deviceCreateInfo{};
 	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -377,12 +379,12 @@ void Render()
 
 	isRecording = false;
 
-	/*for (auto window: renderWindows){
+	for (auto window: renderWindows){
 		VkImageMemoryBarrier imageMemoryBarrier = {};
 		imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 		imageMemoryBarrier.srcAccessMask = VK_ACCESS_NONE_KHR;
 		imageMemoryBarrier.dstAccessMask = VK_ACCESS_NONE_KHR;
-		imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+		imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 		imageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -395,7 +397,7 @@ void Render()
 		imageMemoryBarrier.subresourceRange.layerCount = 1;
 		vkCmdPipelineBarrier(cmd[imageIndex], VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, 0, 0, 0, 0, 0, 1, &imageMemoryBarrier);
 		DeleteImage(image);
-	}*/
+	}
 
 	vkEndCommandBuffer(cmd[imageIndex]);
 
@@ -579,6 +581,7 @@ void* CreateImage(uint32_t x, uint32_t y, unsigned char imageFormat)
 	imageInfo.arrayLayers = 1;
 	if (imageFormat == 0) {
 		imageInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+    imageInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT; 
 	} else
 	if (imageFormat == 1) {
 		imageInfo.format = VK_FORMAT_D32_SFLOAT;
@@ -598,7 +601,7 @@ void* CreateImage(uint32_t x, uint32_t y, unsigned char imageFormat)
 	};
 	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-	imageInfo.usage = imageInfo.usage | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+	imageInfo.usage = imageInfo.usage | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT ;
 
 	//VmaAllocationCreateInfo allocInfo = {};
 	//allocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
@@ -833,6 +836,17 @@ void SetDescriptor(void* shader, void* value, uint32_t binding)
 	}
 }
 
+void SetDesciptorImageArray(void* shader, void** value, uint32_t count, uint32_t binding) {
+	free((void*)((ShaderHandle*)shader)->wdss[binding].pImageInfo);
+	VkDescriptorImageInfo* imageDescriptors = (VkDescriptorImageInfo*)malloc(sizeof(VkDescriptorImageInfo) * count);
+	for (uint32_t i = 0; i < count; i++) {
+		ImageHandle* iValue = (ImageHandle*)(value[i]);
+		imageDescriptors[i] = VkDescriptorImageInfo{ iValue->sampler, iValue->imageView, VK_IMAGE_LAYOUT_GENERAL };
+	}
+	((ShaderHandle*)shader)->wdss[binding].pImageInfo = imageDescriptors;
+	((ShaderHandle*)shader)->wdss[binding].dstArrayElement = count;
+};
+
 void SetConstants(void* shader, void* constants)
 {
 	vkCmdPushConstants(cmd[imageIndex], ((ShaderHandle*)shader)->pipelineLayout, ((ShaderHandle*)shader)->shaderStageFlags, 0, ((ShaderHandle*)shader)->pushConstantsSize, constants);
@@ -1056,7 +1070,7 @@ void* CreateRasterizationPipeline(RasterizationPipelineInfo info)
 	depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
 	VkAttachmentDescription colorAttachment{};
-	colorAttachment.format = VK_FORMAT_R8G8B8A8_UNORM;
+	colorAttachment.format = VK_FORMAT_R32G32B32A32_SFLOAT;
 	colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
 	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
 	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -1869,7 +1883,7 @@ void CreateSwapchain(void* window) {
 	swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 	swapchainCreateInfo.presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
 
-	swapchainCreateInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+	swapchainCreateInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR; 
 	swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 	result = vkCreateSwapchainKHR(device, &swapchainCreateInfo, nullptr, &swapchain);
 	rwi.swapchain = swapchain;
