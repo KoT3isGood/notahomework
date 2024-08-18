@@ -12,6 +12,15 @@ Features
  - Allows to create custom shader pipelines
  - Open source
 
+Dependencies
+------------
+Make sure to link them before you start building your stuff, can be found in thirdparty/
+- GLFW 3.4
+- Vulkan 1.3
+- OpenAL
+- ws2_32 (windows only, networking stuff)
+
+- Modern GPU, atleast RTX 3000 and RX 6000 series (due to barycentric extension and ray tracing)
 
 Basic example
 --------------
@@ -225,3 +234,4 @@ Known bugs:
 
 - Windows don't close properly
 - Vulkan sync can get unstable
+- There is no validation and tips
