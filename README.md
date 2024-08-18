@@ -3,6 +3,9 @@
 
 it is highly inspired by raylib and tries to fix all of it's disadvantages
 
+![image](https://github.com/user-attachments/assets/a9efaeb5-c5b2-48ac-ba12-c9a987225a86)
+
+
 
 Features
 --------
